@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CompreFace Webcam Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+        .video-container {
+            position: relative;
+            margin-top: 20px;
+        }
+        #videoElement {
+            width: 100%;
+            border: 1px solid #ccc;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .settings {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .settings div {
+            margin-bottom: 10px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px 0;
+        }
+        button {
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CompreFace Webcam Demo</h1>
+        
+        <div class="settings">
+            <div>
+                <label for="apiKey">API Key:</label>
+                <input type="text" id="apiKey" value="00000000-0000-0000-0000-000000000002" style="width: 300px;">
+            </div>
+            <div>
+                <label for="host">Host:</label>
+                <input type="text" id="host" value="http://10.10.10.95">
+            </div>
+            <div>
+                <label for="port">Port:</label>
+                <input type="text" id="port" value="8000">
+            </div>
+            <div>
+                <label for="detProbThreshold">Detection Probability Threshold:</label>
+                <input type="number" id="detProbThreshold" value="0.8" min="0" max="1" step="0.05">
+            </div>
+            <div>
+                <label for="similarityThreshold">Similarity Threshold:</label>
+                <input type="number" id="similarityThreshold" value="0.85" min="0" max="1" step="0.05">
+            </div>
+            <div>
+                <label for="facePlugins">Face Plugins:</label>
+                <input type="text" id="facePlugins" value="age,gender" style="width: 300px;">
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="startButton">Start Camera</button>
+            <button id="stopButton" disabled>Stop Camera</button>
+        </div>
+        
+        <div class="video-container">
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="log" id="logContainer">
+            <div>Log di debug:</div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        let config = {
+            apiKey: '00000000-0000-0000-0000-000000000002',
+            host: 'http://10.10.10.95',
+            port: '8000',
+            detProbThreshold: 0.8,
+            similarityThreshold: 0.85,
+            facePlugins: 'age,gender'
+        };
+
+        // DOM Elements
+        const videoElement = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const apiKeyInput = document.getElementById('apiKey');
+        const hostInput = document.getElementById('host');
+        const portInput = document.getElementById('port');
+        const detProbThresholdInput = document.getElementById('detProbThreshold');
+        const similarityThresholdInput = document.getElementById('similarityThreshold');
+        const facePluginsInput = document.getElementById('facePlugins');
+        const logContainer = document.getElementById('logContainer');
+
+        // Variables
+        let stream = null;
+        let isRunning = false;
+        let recognitionTimer = null;
+        let lastResults = [];
+
+        // Logger function
+        function log(message) {
+            const logLine = document.createElement('div');
+            logLine.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logContainer.appendChild(logLine);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Initialize event listeners
+        function init() {
+            startButton.addEventListener('click', startCamera);
+            stopButton.addEventListener('click', stopCamera);
+            
+            // Update config from inputs
+            apiKeyInput.addEventListener('change', updateConfig);
+            hostInput.addEventListener('change', updateConfig);
+            portInput.addEventListener('change', updateConfig);
+            detProbThresholdInput.addEventListener('change', updateConfig);
+            similarityThresholdInput.addEventListener('change', updateConfig);
+            facePluginsInput.addEventListener('change', updateConfig);
+            
+            log("Applicazione inizializzata.");
+        }
+
+        // Update config from input fields
+        function updateConfig() {
+            config.apiKey = apiKeyInput.value;
+            config.host = hostInput.value;
+            config.port = portInput.value;
+            config.detProbThreshold = parseFloat(detProbThresholdInput.value);
+            config.similarityThreshold = parseFloat(similarityThresholdInput.value);
+            config.facePlugins = facePluginsInput.value;
+            log("Configurazione aggiornata.");
+        }
+
+        // Start camera
+        async function startCamera() {
+            try {
+                updateConfig();
+                log("Avvio della camera...");
+                
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user" }
+                });
+                
+                videoElement.srcObject = stream;
+                
+                // Wait for video to be ready
+                videoElement.onloadedmetadata = () => {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    
+                    isRunning = true;
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                    
+                    log("Camera avviata correttamente. Inizio del riconoscimento facciale.");
+                    
+                    // Start recognition loop
+                    recognitionLoop();
+                    
+                    // Start rendering loop
+                    requestAnimationFrame(renderFrame);
+                };
+            } catch (error) {
+                log(`ERRORE: Impossibile accedere alla camera: ${error.message}`);
+                console.error("Error accessing camera:", error);
+                alert("Impossibile accedere alla camera. Assicurati di aver concesso i permessi necessari.");
+            }
+        }
+
+        // Stop camera
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            
+            isRunning = false;
+            clearTimeout(recognitionTimer);
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            lastResults = [];
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            log("Camera fermata.");
+        }
+
+        // Recognition loop (run every 1 second)
+        function recognitionLoop() {
+            if (!isRunning) return;
+            
+            recognizeFromVideo()
+                .then(results => {
+                    if (results) {
+                        lastResults = results;
+                        log(`Riconosciuto ${results.length} volti.`);
+                    }
+                })
+                .catch(error => {
+                    log(`ERRORE nel riconoscimento: ${error.message}`);
+                    console.error("Recognition error:", error);
+                })
+                .finally(() => {
+                    // Schedule next recognition
+                    recognitionTimer = setTimeout(recognitionLoop, 1000);
+                });
+        }
+
+        // Perform face recognition on current video frame
+        async function recognizeFromVideo() {
+            if (!videoElement.videoWidth) return null;
+            
+            // Create a temporary canvas to capture the current frame
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = videoElement.videoWidth;
+            tempCanvas.height = videoElement.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Flip the image horizontally (mirror effect)
+            tempCtx.translate(tempCanvas.width, 0);
+            tempCtx.scale(-1, 1);
+            
+            // Draw the current video frame
+            tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Convert to blob
+            return new Promise(resolve => {
+                tempCanvas.toBlob(async (blob) => {
+                    try {
+                        // Create a file with proper extension from the blob
+                        const timestamp = new Date().getTime();
+                        const file = new File([blob], `webcam_${timestamp}.jpg`, { type: 'image/jpeg' });
+                        
+                        // Make API request to CompreFace
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        // Build URL with query parameters
+                        const url = new URL(`${config.host}:${config.port}/api/v1/recognition/recognize`);
+                        url.searchParams.append('limit', '0');
+                        url.searchParams.append('det_prob_threshold', config.detProbThreshold);
+                        url.searchParams.append('face_plugins', config.facePlugins);
+                        url.searchParams.append('prediction_count', '1');
+                        
+                        log(`Invio richiesta a: ${url.toString()}`);
+                        
+                        const response = await fetch(url.toString(), {
+                            method: 'POST',
+                            headers: {
+                                'x-api-key': config.apiKey
+                            },
+                            body: formData
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            log(`Risposta API: ${response.status} - ${errorText}`);
+                            throw new Error(`API error: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        log(`Risposta API ricevuta correttamente.`);
+                        resolve(data.result);
+                    } catch (error) {
+                        log(`ERRORE nella richiesta API: ${error.message}`);
+                        console.error("API request failed:", error);
+                        resolve(null);
+                    }
+                }, 'image/jpeg', 0.9);
+            });
+        }
+
+        // Render frame with face boxes and labels
+        function renderFrame() {
+            if (!isRunning) return;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw video frame
+            if (lastResults && lastResults.length > 0) {
+                // Draw boxes and labels for each detected face
+                lastResults.forEach(result => {
+                    const box = result.box;
+                    const age = result.age;
+                    const gender = result.gender;
+                    const subjects = result.subjects;
+                    
+                    if (box) {
+                        // Adjust coordinates for mirrored image
+                        const x_min = canvas.width - box.x_max;
+                        const x_max = canvas.width - box.x_min;
+                        const y_min = box.y_min;
+                        const y_max = box.y_max;
+                        
+                        // Draw face rectangle
+                        ctx.strokeStyle = '#00FF00';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x_min, y_min, x_max - x_min, y_max - y_min);
+                        
+                        // Setup text style
+                        ctx.font = '16px Arial';
+                        ctx.fillStyle = '#00FF00';
+                        
+                        let textY = y_min + 20;
+                        
+                        // Display age
+                        if (age) {
+                            ctx.fillText(`Età: ${age.low} - ${age.high}`, x_max + 5, textY);
+                            textY += 20;
+                        }
+                        
+                        // Display gender
+                        if (gender) {
+                            ctx.fillText(`Genere: ${gender.value}`, x_max + 5, textY);
+                            textY += 20;
+                        }
+                        
+                        // Display recognition results
+                        if (subjects && subjects.length > 0) {
+                            // Sort subjects by similarity (highest first)
+                            subjects.sort((a, b) => b.similarity - a.similarity);
+                            
+                            if (subjects[0].similarity >= config.similarityThreshold) {
+                                ctx.fillText(`Soggetto: ${subjects[0].subject}`, x_max + 5, textY);
+                                textY += 20;
+                                ctx.fillText(`Somiglianza: ${subjects[0].similarity.toFixed(2)}`, x_max + 5, textY);
+                            } else {
+                                ctx.fillText("Volto sconosciuto", x_max + 5, textY);
+                            }
+                        } else {
+                            ctx.fillText("Volto sconosciuto", x_max + 5, textY);
+                        }
+                    }
+                });
+            }
+            
+            // Continue rendering loop
+            requestAnimationFrame(renderFrame);
+        }
+
+        // Initialize the application
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

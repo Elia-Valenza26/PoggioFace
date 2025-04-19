@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CompreFace Webcam Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            background-color: #000;
+        }
+        .video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <video id="videoElement" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+
+        //python webcam_demo.py --api-key 675d4870-ee0c-4271-929f-3b11141048b0 --host http://10.10.10.95 --port 8000     
+
+        // Configuration from environment variables (you should configure dotenv or an API endpoint to fetch these values)
+        let config = {
+            apiKey: 'YOUR_API_KEY',
+            host: 'YOUR_HOST',
+            port: 'YOUR_PORT',
+            detProbThreshold: 0.8,
+            similarityThreshold: 0.85,
+            facePlugins: 'age,gender'
+        };
+
+        // DOM Elements
+        const videoElement = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let stream = null;
+        let isRunning = false;
+        let recognitionTimer = null;
+        let lastResults = [];
+
+        // Logger function - send logs to the server instead of showing them in the UI
+        function log(message) {
+            fetch('/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: `${new Date().toLocaleTimeString()}: ${message}` })
+            }).catch(err => console.error('Logging error:', err));
+        }
+
+        // Automatically start the camera on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            startCamera();
+            log('Applicazione avviata e camera inizializzata.');
+        });
+
+        // Start camera
+        async function startCamera() {
+            try {
+                log("Avvio della camera...");
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user" }
+                });
+                
+                videoElement.srcObject = stream;
+                
+                // Wait for video to be ready
+                videoElement.onloadedmetadata = () => {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    
+                    isRunning = true;
+                    
+                    log("Camera avviata correttamente. Inizio del riconoscimento facciale.");
+                    
+                    // Start recognition loop
+                    recognitionLoop();
+                    
+                    // Start rendering loop
+                    requestAnimationFrame(renderFrame);
+                };
+            } catch (error) {
+                log(`ERRORE: Impossibile accedere alla camera: ${error.message}`);
+                console.error("Error accessing camera:", error);
+                alert("Impossibile accedere alla camera. Assicurati di aver concesso i permessi necessari.");
+            }
+        }
+
+        // Recognition loop (run every 1 second)
+        function recognitionLoop() {
+            if (!isRunning) return;
+
+            recognizeFromVideo()
+                .then(results => {
+                    if (results) {
+                        lastResults = results;
+                        log(`Riconosciuto ${results.length} volti.`);
+                    }
+                })
+                .catch(error => {
+                    log(`ERRORE nel riconoscimento: ${error.message}`);
+                    console.error("Recognition error:", error);
+                })
+                .finally(() => {
+                    // Schedule next recognition
+                    recognitionTimer = setTimeout(recognitionLoop, 1000);
+                });
+        }
+
+        // Perform face recognition on current video frame
+        async function recognizeFromVideo() {
+            if (!videoElement.videoWidth) return null;
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = videoElement.videoWidth;
+            tempCanvas.height = videoElement.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            tempCtx.translate(tempCanvas.width, 0);
+            tempCtx.scale(-1, 1);
+            tempCtx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            return new Promise(resolve => {
+                tempCanvas.toBlob(async (blob) => {
+                    try {
+                        const timestamp = new Date().getTime();
+                        const file = new File([blob], `webcam_${timestamp}.jpg`, { type: 'image/jpeg' });
+                        
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        const url = new URL(`${config.host}:${config.port}/api/v1/recognition/recognize`);
+                        url.searchParams.append('limit', '0');
+                        url.searchParams.append('det_prob_threshold', config.detProbThreshold);
+                        url.searchParams.append('face_plugins', config.facePlugins);
+                        url.searchParams.append('prediction_count', '1');
+                        
+                        log(`Invio richiesta a: ${url.toString()}`);
+                        
+                        const response = await fetch(url.toString(), {
+                            method: 'POST',
+                            headers: {
+                                'x-api-key': config.apiKey
+                            },
+                            body: formData
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            log(`Risposta API: ${response.status} - ${errorText}`);
+                            throw new Error(`API error: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        log(`Risposta API ricevuta correttamente.`);
+                        resolve(data.result);
+                    } catch (error) {
+                        log(`ERRORE nella richiesta API: ${error.message}`);
+                        console.error("API request failed:", error);
+                        resolve(null);
+                    }
+                }, 'image/jpeg', 0.9);
+            });
+        }
+
+        // Render frame with face boxes and labels
+        function renderFrame() {
+            if (!isRunning) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (lastResults && lastResults.length > 0) {
+                lastResults.forEach(result => {
+                    const box = result.box;
+                    if (box) {
+                        const x_min = canvas.width - box.x_max;
+                        const x_max = canvas.width - box.x_min;
+                        const y_min = box.y_min;
+                        const y_max = box.y_max;
+
+                        ctx.strokeStyle = '#00FF00';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x_min, y_min, x_max - x_min, y_max - y_min);
+
+                        ctx.font = '16px Arial';
+                        ctx.fillStyle = '#00FF00';
+
+                        let textY = y_min + 20;
+                        if (result.age) ctx.fillText(`Età: ${result.age.low} - ${result.age.high}`, x_max + 5, textY);
+                        if (result.gender) ctx.fillText(`Genere: ${result.gender.value}`, x_max + 5, textY);
+                        if (result.subjects && result.subjects.length > 0) {
+                            const subjects = result.subjects.sort((a, b) => b.similarity - a.similarity);
+                            if (subjects[0].similarity >= config.similarityThreshold) {
+                                ctx.fillText(`Soggetto: ${subjects[0].subject}`, x_max + 5, textY);
+                                textY += 20;
+                                ctx.fillText(`Somiglianza: ${subjects[0].similarity.toFixed(2)}`, x_max + 5, textY);
+                            } else {
+                                ctx.fillText("Volto sconosciuto", x_max + 5, textY);
+                            }
+                        } else {
+                            ctx.fillText("Volto sconosciuto", x_max + 5, textY);
+                        }
+                    }
+                });
+            }
+            requestAnimationFrame(renderFrame);
+        }
+    </script>
+</body>
+</html>
