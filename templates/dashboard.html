@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoggioFace - Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #333;
+            color: #00FFFF;
+            padding: 15px 0;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 {
+            margin: 0;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #ddd;
+            flex: 1;
+            text-align: center;
+            transition: background-color 0.3s;
+        }
+        .tab.active {
+            background-color: #00FFFF;
+            color: #333;
+        }
+        .tab-content {
+            display: none;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .tab-content.active {
+            display: block;
+        }
+        /* Subjects list styling */
+        .subjects-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .subject-card {
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .subject-card h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .subject-images {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .subject-image {
+            position: relative;
+            width: 100%;
+            padding-bottom: 100%; /* 1:1 Aspect Ratio */
+            overflow: hidden;
+        }
+        .subject-image img {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 3px;
+        }
+        .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .subject-image:hover .delete-btn {
+            opacity: 1;
+        }
+        /* Form styling */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #00FFFF;
+            color: #333;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #00cccc;
+        }
+        .button-danger {
+            background-color: #ff4444;
+            color: white;
+        }
+        .button-danger:hover {
+            background-color: #cc0000;
+        }
+        /* Webcam styling */
+        .webcam-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        #webcamVideo {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        #webcamCanvas {
+            display: none;
+        }
+        /* Status indicator */
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-active {
+            background-color: #00cc00;
+        }
+        .status-paused {
+            background-color: #ff4444;
+        }
+        #recognitionStatus {
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #00FFFF;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.success {
+            background-color: #00cc00;
+        }
+        .toast.error {
+            background-color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PoggioFace Dashboard</h1>
+    </header>
+    
+    <div class="container">
+        <div id="recognitionStatus">
+            <span class="status-indicator status-active"></span>
+            Riconoscimento: Attivo
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="subjects">Soggetti</div>
+            <div class="tab" data-tab="add-subject">Aggiungi Soggetto</div>
+        </div>
+        
+        <div class="tab-content active" id="subjects-tab">
+            <div class="loading-container">
+                <span class="spinner"></span> Caricamento soggetti...
+            </div>
+            <div class="subjects-list" id="subjectsList">
+                <!-- Subjects will be populated here via JavaScript -->
+            </div>
+        </div>
+        
+        <div class="tab-content" id="add-subject-tab">
+            <h2>Aggiungi un nuovo soggetto</h2>
+            <form id="addSubjectForm">
+                <div class="form-group">
+                    <label for="subjectName">Nome del soggetto:</label>
+                    <input type="text" id="subjectName" name="subjectName" required>
+                </div>
+                
+                <div class="form-group">
+                    <h3>Scegli un metodo per aggiungere la foto:</h3>
+                    <div>
+                        <input type="radio" id="fileMethod" name="photoMethod" value="file" checked>
+                        <label for="fileMethod">Carica una foto</label>
+                    </div>
+                    <div>
+                        <input type="radio" id="webcamMethod" name="photoMethod" value="webcam">
+                        <label for="webcamMethod">Usa la webcam</label>
+                    </div>
+                </div>
+                
+                <div id="fileUploadSection" class="form-group">
+                    <label for="subjectPhoto">Foto del soggetto:</label>
+                    <input type="file" id="subjectPhoto" name="subjectPhoto" accept="image/jpeg, image/png, image/webp" required>
+                </div>
+                
+                <div id="webcamSection" class="form-group hidden">
+                    <div class="webcam-container">
+                        <video id="webcamVideo" autoplay playsinline></video>
+                        <canvas id="webcamCanvas"></canvas>
+                        <button type="button" id="captureBtn">Scatta foto</button>
+                        <p id="captureStatus">Nessuna foto scattata</p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" id="submitSubject">Aggiungi Soggetto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        // Configuration
+        let apiKey = ''; // Will be loaded from the server
+        let baseUrl = ''; // Will be loaded from the server
+        let port = ''; // Will be loaded from the server
+        let recognitionActive = true;
+        let webcamStream = null;
+        let photoTaken = false;
+        
+        // DOM Elements
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const subjectsList = document.getElementById('subjectsList');
+        const addSubjectForm = document.getElementById('addSubjectForm');
+        const fileMethod = document.getElementById('fileMethod');
+        const webcamMethod = document.getElementById('webcamMethod');
+        const fileUploadSection = document.getElementById('fileUploadSection');
+        const webcamSection = document.getElementById('webcamSection');
+        const webcamVideo = document.getElementById('webcamVideo');
+        const webcamCanvas = document.getElementById('webcamCanvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const captureStatus = document.getElementById('captureStatus');
+        const recognitionStatus = document.getElementById('recognitionStatus');
+        const statusIndicator = recognitionStatus.querySelector('.status-indicator');
+        const toast = document.getElementById('toast');
+        
+        // Tab navigation
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+                
+                // If switching to webcam tab, pause recognition
+                if (tabId === 'add-subject' && recognitionActive) {
+                    pauseRecognition();
+                }
+                
+                // Update active tab
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Show active content
+                tabContents.forEach(content => {
+                    if (content.id === tabId + '-tab') {
+                        content.classList.add('active');
+                    } else {
+                        content.classList.remove('active');
+                    }
+                });
+            });
+        });
+        
+        // Toggle between file upload and webcam based on radio selection
+        fileMethod.addEventListener('change', () => {
+            if (fileMethod.checked) {
+                fileUploadSection.classList.remove('hidden');
+                webcamSection.classList.add('hidden');
+                stopWebcam();
+            }
+        });
+        
+        webcamMethod.addEventListener('change', () => {
+            if (webcamMethod.checked) {
+                fileUploadSection.classList.add('hidden');
+                webcamSection.classList.remove('hidden');
+                startWebcam();
+            }
+        });
+        
+        // Start webcam function
+        async function startWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user" }
+                });
+                webcamVideo.srcObject = webcamStream;
+            } catch (error) {
+                console.error("Errore nell'accesso alla webcam:", error);
+                showToast("Impossibile accedere alla webcam. Assicurati di aver concesso i permessi necessari.", "error");
+            }
+        }
+        
+        // Stop webcam function
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+            }
+        }
+        
+        // Capture photo from webcam
+        captureBtn.addEventListener('click', () => {
+            if (!webcamStream) {
+                showToast("La webcam non è attiva", "error");
+                return;
+            }
+            
+            const context = webcamCanvas.getContext('2d');
+            webcamCanvas.width = webcamVideo.videoWidth;
+            webcamCanvas.height = webcamVideo.videoHeight;
+            
+            // Flip the image horizontally (mirror effect)
+            context.translate(webcamCanvas.width, 0);
+            context.scale(-1, 1);
+            context.drawImage(webcamVideo, 0, 0, webcamCanvas.width, webcamCanvas.height);
+            
+            photoTaken = true;
+            captureStatus.textContent = "Foto scattata con successo!";
+            showToast("Foto scattata con successo!", "success");
+        });
+        
+        // Submit form to add a new subject
+        addSubjectForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const subjectName = document.getElementById('subjectName').value.trim();
+            if (!subjectName) {
+                showToast("Inserisci un nome per il soggetto", "error");
+                return;
+            }
+            
+            let imageFile;
+            
+            if (fileMethod.checked) {
+                const fileInput = document.getElementById('subjectPhoto');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    showToast("Seleziona un'immagine", "error");
+                    return;
+                }
+                imageFile = fileInput.files[0];
+            } else {
+                if (!photoTaken) {
+                    showToast("Scatta una foto prima di procedere", "error");
+                    return;
+                }
+                
+                // Convert canvas to blob
+                const blob = await new Promise(resolve => {
+                    webcamCanvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.9);
+                });
+                
+                imageFile = new File([blob], `webcam_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            }
+            
+            // First check if subject exists
+            try {
+                const response = await fetch(`${baseUrl}/api/v1/recognition/subjects`, {
+                    headers: {
+                        'x-api-key': apiKey
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore nel recupero dei soggetti: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const subjectExists = data.subjects.includes(subjectName);
+                
+                if (!subjectExists) {
+                    // Create subject first
+                    await fetch(`${baseUrl}/api/v1/recognition/subjects`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey
+                        },
+                        body: JSON.stringify({ subject: subjectName })
+                    });
+                }
+                
+                // Now add the face example
+                const formData = new FormData();
+                formData.append('file', imageFile);
+                
+                const addExampleResponse = await fetch(`${baseUrl}/api/v1/recognition/faces?subject=${encodeURIComponent(subjectName)}&det_prob_threshold=0.8`, {
+                    method: 'POST',
+                    headers: {
+                        'x-api-key': apiKey
+                    },
+                    body: formData
+                });
+                
+                if (!addExampleResponse.ok) {
+                    throw new Error(`Errore nell'aggiunta dell'esempio: ${addExampleResponse.status}`);
+                }
+                
+                // Success!
+                showToast(`Soggetto "${subjectName}" aggiunto con successo!`, "success");
+                
+                // Reset form
+                addSubjectForm.reset();
+                captureStatus.textContent = "Nessuna foto scattata";
+                photoTaken = false;
+                
+                // Switch to subjects tab and refresh list
+                document.querySelector('.tab[data-tab="subjects"]').click();
+                loadSubjects();
+                resumeRecognition();
+                
+            } catch (error) {
+                console.error("Errore nell'aggiunta del soggetto:", error);
+                showToast(`Errore nell'aggiunta del soggetto: ${error.message}`, "error");
+            }
+        });
+        
+        // Load configuration from server
+        async function loadConfig() {
+            try {
+                const response = await fetch('/config');
+                if (!response.ok) {
+                    throw new Error(`Errore nel caricamento della configurazione: ${response.status}`);
+                }
+                
+                const config = await response.json();
+                apiKey = config.apiKey;
+                baseUrl = config.host;
+                port = config.port;
+                
+                // Add port to baseUrl if needed
+                if (port && !baseUrl.includes(`:${port}`)) {
+                    baseUrl = `${baseUrl}:${port}`;
+                }
+                
+                // Once config is loaded, load subjects
+                loadSubjects();
+                
+            } catch (error) {
+                console.error("Errore nel caricamento della configurazione:", error);
+                showToast("Errore nel caricamento della configurazione", "error");
+            }
+        }
+        
+        // Load subjects from API
+        async function loadSubjects() {
+            try {
+                document.querySelector('.loading-container').classList.remove('hidden');
+                
+                const response = await fetch(`${baseUrl}/api/v1/recognition/subjects`, {
+                    headers: {
+                        'x-api-key': apiKey
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore nel recupero dei soggetti: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Clear current list
+                subjectsList.innerHTML = '';
+                
+                if (data.subjects.length === 0) {
+                    subjectsList.innerHTML = '<p>Nessun soggetto trovato. Aggiungi un nuovo soggetto per iniziare.</p>';
+                    document.querySelector('.loading-container').classList.add('hidden');
+                    return;
+                }
+                
+                // Process each subject
+                const subjectsPromises = data.subjects.map(async (subject) => {
+                    return loadSubjectDetails(subject);
+                });
+                
+                await Promise.all(subjectsPromises);
+                document.querySelector('.loading-container').classList.add('hidden');
+                
+            } catch (error) {
+                console.error("Errore nel caricamento dei soggetti:", error);
+                showToast("Errore nel caricamento dei soggetti", "error");
+                document.querySelector('.loading-container').classList.add('hidden');
+            }
+        }
+        
+        // Load details for a specific subject
+        async function loadSubjectDetails(subjectName) {
+            try {
+                const response = await fetch(`${baseUrl}/api/v1/recognition/faces?subject=${encodeURIComponent(subjectName)}`, {
+                    headers: {
+                        'x-api-key': apiKey
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore nel recupero dei dettagli del soggetto: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Create subject card
+                const subjectCard = document.createElement('div');
+                subjectCard.className = 'subject-card';
+                
+                const header = document.createElement('div');
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.style.alignItems = 'center';
+                
+                const title = document.createElement('h3');
+                title.textContent = subjectName;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'button-danger';
+                deleteBtn.textContent = 'Elimina';
+                deleteBtn.onclick = () => deleteSubject(subjectName);
+                
+                header.appendChild(title);
+                header.appendChild(deleteBtn);
+                subjectCard.appendChild(header);
+                
+                const imagesContainer = document.createElement('div');
+                imagesContainer.className = 'subject-images';
+                
+                // Add each image
+                if (data.faces && data.faces.length > 0) {
+                    data.faces.forEach(face => {
+                        const imageContainer = document.createElement('div');
+                        imageContainer.className = 'subject-image';
+                        
+                        const img = document.createElement('img');
+                        img.src = `${baseUrl}/api/v1/recognition/faces/${face.image_id}/img`;
+                        img.alt = subjectName;
+                        img.setAttribute('data-image-id', face.image_id);
+                        
+                        const deleteImgBtn = document.createElement('button');
+                        deleteImgBtn.className = 'delete-btn';
+                        deleteImgBtn.textContent = '×';
+                        deleteImgBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            deleteImage(face.image_id, imageContainer);
+                        };
+                        
+                        imageContainer.appendChild(img);
+                        imageContainer.appendChild(deleteImgBtn);
+                        imagesContainer.appendChild(imageContainer);
+                    });
+                } else {
+                    const noImages = document.createElement('p');
+                    noImages.textContent = 'Nessuna immagine trovata per questo soggetto';
+                    imagesContainer.appendChild(noImages);
+                }
+                
+                subjectCard.appendChild(imagesContainer);
+                subjectsList.appendChild(subjectCard);
+                
+            } catch (error) {
+                console.error(`Errore nel caricamento dei dettagli per ${subjectName}:`, error);
+            }
+        }
+        
+        // Delete an image
+        async function deleteImage(imageId, imageElement) {
+            if (!confirm('Sei sicuro di voler eliminare questa immagine?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${baseUrl}/api/v1/recognition/faces/${imageId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'x-api-key': apiKey
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore nell'eliminazione dell'immagine: ${response.status}`);
+                }
+                
+                // Remove image from DOM
+                imageElement.remove();
+                showToast("Immagine eliminata con successo", "success");
+                
+            } catch (error) {
+                console.error("Errore nell'eliminazione dell'immagine:", error);
+                showToast("Errore nell'eliminazione dell'immagine", "error");
+            }
+        }
+        
+        // Delete a subject and all associated images
+        async function deleteSubject(subjectName) {
+            if (!confirm(`Sei sicuro di voler eliminare il soggetto "${subjectName}" e tutte le sue immagini?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${baseUrl}/api/v1/recognition/subjects/${encodeURIComponent(subjectName)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'x-api-key': apiKey
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore nell'eliminazione del soggetto: ${response.status}`);
+                }
+                
+                showToast(`Soggetto "${subjectName}" eliminato con successo`, "success");
+                loadSubjects(); // Refresh the list
+                
+            } catch (error) {
+                console.error("Errore nell'eliminazione del soggetto:", error);
+                showToast("Errore nell'eliminazione del soggetto", "error");
+            }
+        }
+        
+        // Pause recognition when adding a new subject
+        function pauseRecognition() {
+            fetch('/pause_recognition', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        recognitionActive = false;
+                        updateRecognitionStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error("Errore nella pausa del riconoscimento:", error);
+                });
+        }
+        
+        // Resume recognition after adding a subject
+        function resumeRecognition() {
+            fetch('/resume_recognition', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        recognitionActive = true;
+                        updateRecognitionStatus();
+                    }
+                })
+                .catch(error => {
+                    console.error("Errore nella ripresa del riconoscimento:", error);
+                });
+        }
+        
+        // Update the recognition status indicator
+        function updateRecognitionStatus() {
+            if (recognitionActive) {
+                statusIndicator.className = 'status-indicator status-active';
+                recognitionStatus.innerHTML = '<span class="status-indicator status-active"></span> Riconoscimento: Attivo';
+            } else {
+                statusIndicator.className = 'status-indicator status-paused';
+                recognitionStatus.innerHTML = '<span class="status-indicator status-paused"></span> Riconoscimento: In pausa';
+            }
+        }
+        
+        // Show toast notification
+        function showToast(message, type = '') {
+            toast.textContent = message;
+            toast.className = 'toast';
+            
+            if (type) {
+                toast.classList.add(type);
+            }
+            
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Clean up when page is unloaded
+        window.addEventListener('beforeunload', () => {
+            stopWebcam();
+            if (!recognitionActive) {
+                resumeRecognition();
+            }
+        });
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+        });
+    </script>
+</body>
+</html>
