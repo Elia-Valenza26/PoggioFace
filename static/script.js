@@ -27,7 +27,7 @@ async function loadConfig() {
         log("Configurazione caricata dal server");
         console.log("Configurazione:", config);
         
-        // Ora che abbiamo la configurazione, avvia la camera
+        //Avvio camera dopo il caricamento della configurazione
         startCamera();
     } catch (error) {
         log(`ERRORE: Impossibile caricare la configurazione: ${error.message}`);
