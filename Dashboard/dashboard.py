@@ -85,12 +85,12 @@ def health_check():
             'error': str(e)
         }), 500
 
-# Endpoint per ottenere tutti i soggetti
+# Endpoint per ottenere tutti i soggetti con retry avanzato
 @app.route('/api/subjects', methods=['GET'])
 def get_subjects():
-    max_retries = 3
+    max_retries = 5  # Aumenta il numero di tentativi di retry
     retry_count = 0
-    retry_delay = 1  # secondi
+    retry_delay = 1  # secondi per iniziare il backoff
 
     while retry_count < max_retries:
         try:
@@ -104,14 +104,16 @@ def get_subjects():
                 return jsonify({'error': 'Formato dati non valido'}), 500
                 
             return jsonify(response.json())
+        
         except requests.exceptions.Timeout:
             retry_count += 1
             app.logger.warning(f"Timeout recupero soggetti, tentativo {retry_count}/{max_retries}")
             if retry_count < max_retries:
                 time.sleep(retry_delay)
-                retry_delay *= 2  # Backoff esponenziale
+                retry_delay *= 2  # Aumento esponenziale del backoff
             else:
                 return jsonify({'error': 'Timeout nella connessione al server CompreFace'}), 504
+        
         except requests.exceptions.ConnectionError:
             retry_count += 1
             app.logger.warning(f"Errore connessione recupero soggetti, tentativo {retry_count}/{max_retries}")
@@ -120,9 +122,11 @@ def get_subjects():
                 retry_delay *= 2
             else:
                 return jsonify({'error': 'Impossibile connettersi al server CompreFace'}), 503
+        
         except requests.exceptions.HTTPError as e:
             app.logger.error(f"Errore CompreFace: {e.response.text}")
             return jsonify({'error': f"Errore backend: {e.response.text}"}), e.response.status_code
+        
         except Exception as e:
             app.logger.error(f"Errore generico: {str(e)}")
             return jsonify({'error': 'Errore interno del server'}), 500
@@ -281,12 +285,12 @@ def delete_multiple_images():
     except requests.exceptions.RequestException as e:
         return jsonify({'error': str(e)}), 500
 
-# Endpoint per eliminare un soggetto completo
+# Endpoint per eliminare un soggetto completo con timeout breve
 @app.route('/api/subjects/<subject>', methods=['DELETE'])
 def delete_subject(subject):
     try:
         url = f"{COMPREFACE_URL}/api/v1/recognition/subjects/{subject}"
-        response = requests.delete(url, headers=get_headers(), timeout=10)
+        response = requests.delete(url, headers=get_headers(), timeout=5)  # Timeout ridotto
         response.raise_for_status()
         
         return jsonify(response.json())
@@ -296,6 +300,7 @@ def delete_subject(subject):
     except Exception as e:
         app.logger.error(str(e))
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
