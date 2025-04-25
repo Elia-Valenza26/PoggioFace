@@ -18,11 +18,10 @@ app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # Limite di 5MB per le immagini
 
 
-
-
 # Configura le API per CompreFace
-COMPREFACE_URL = os.getenv('COMPREFACE_URL', 'http://localhost:8000')
-RECOGNITION_API_KEY = os.getenv('RECOGNITION_API_KEY')  # Chiave API del servizio di riconoscimento
+COMPREFACE_URL = os.getenv('COMPREFACE_URL') # URL del server CompreFace
+RECOGNITION_API_KEY = os.getenv('RECOGNITION_API_KEY')  # Chiave API del servizio CompreFace
+PORT = os.getenv('PORT')  # PORT del servizio CompreFace
 
 # Headers comuni per le richieste
 def get_headers(content_type='application/json'):
@@ -35,12 +34,13 @@ def get_headers(content_type='application/json'):
 def index():
     return render_template('dashboard.html')
 
+# Endpoint per testare la connessione al server che esegue CompreFace
 @app.route('/api/test-connection', methods=['GET'])
 def test_connection():
     import socket
     
-    host = '10.10.10.95'
-    port = 8000
+    host = COMPREFACE_URL.split('://')[-1].split(':')[0]  # Estrae l'host da COMPREFACE_URL
+    port = int(PORT)
     timeout = 5
     
     try:
@@ -58,6 +58,7 @@ def test_connection():
     finally:
         sock.close()
 
+# Endpoint per testare la connessione al server CompreFace
 @app.route('/api/health', methods=['GET'])
 def health_check():
     try:
@@ -85,10 +86,10 @@ def health_check():
             'error': str(e)
         }), 500
 
-# Endpoint per ottenere tutti i soggetti con retry avanzato
+# Endpoint per ottenere tutti i soggetti
 @app.route('/api/subjects', methods=['GET'])
 def get_subjects():
-    max_retries = 5  # Aumenta il numero di tentativi di retry
+    max_retries = 5  # Numero massimo di tentativi
     retry_count = 0
     retry_delay = 1  # secondi per iniziare il backoff
 
@@ -285,12 +286,12 @@ def delete_multiple_images():
     except requests.exceptions.RequestException as e:
         return jsonify({'error': str(e)}), 500
 
-# Endpoint per eliminare un soggetto completo con timeout breve
+# Endpoint per eliminare un soggetto completo
 @app.route('/api/subjects/<subject>', methods=['DELETE'])
 def delete_subject(subject):
     try:
         url = f"{COMPREFACE_URL}/api/v1/recognition/subjects/{subject}"
-        response = requests.delete(url, headers=get_headers(), timeout=5)  # Timeout ridotto
+        response = requests.delete(url, headers=get_headers(), timeout=5)
         response.raise_for_status()
         
         return jsonify(response.json())
@@ -303,4 +304,4 @@ def delete_subject(subject):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
