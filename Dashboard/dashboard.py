@@ -137,11 +137,13 @@ def get_subjects():
 def get_subject_images(subject):
     try:
         url = f"{COMPREFACE_URL}/api/v1/recognition/faces?subject={subject}"
-        response = requests.get(url, headers=get_headers())
-        response.raise_for_status()
+        response = requests.get(url, headers=get_headers(), timeout=5)
+        response.raise_for_status()  # Solleva un'eccezione in caso di errore HTTP
         return jsonify(response.json())
     except requests.exceptions.RequestException as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Errore nel recupero delle immagini per {subject}: {str(e)}")
+        return jsonify({'error': 'Errore nel recupero delle immagini'}), 500
+
 
 # Endpoint per scaricare un'immagine per ID
 @app.route('/api/images/<image_id>', methods=['GET'])
