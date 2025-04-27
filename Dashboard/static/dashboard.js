@@ -764,7 +764,7 @@ async function deleteSubject(subjectName) {
         await new Promise(r => setTimeout(r, 5000));
         
         const response = await fetchWithRetry(
-            `${config.host}:${config.port}/api/v1/recognition/subjects`,
+            `${config.host}:${config.port}/api/v1/recognition/subjects/${encodeURIComponent(subjectName)}`,
             {
                 method: 'DELETE',
                 headers: {
