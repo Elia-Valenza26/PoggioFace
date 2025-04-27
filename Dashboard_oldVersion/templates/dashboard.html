@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard PoggioFace</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --accent-color: #4cc9f0;
+            --success-color: #4ade80;
+            --danger-color: #f87171;
+            --warning-color: #fbbf24;
+            --light-bg: #f8fafc;
+            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --hover-transition: all 0.3s ease;
+        }
+
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            background-color: white;
+            border-radius: 50%;
+            box-shadow: var(--card-shadow);
+        }
+
+        .page-title {
+            font-weight: 700;
+            font-size: 2rem;
+            color: var(--primary-color);
+            text-align: center;
+            margin: 0;
+        }
+
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            transition: var(--hover-transition);
+            height: 100%;
+            margin-bottom: 1.5rem;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #f0f0f0;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1rem 1.25rem;
+        }
+
+        .subject-card {
+            margin-bottom: 20px;
+            transition: var(--hover-transition);
+        }
+
+        .subject-card .card-body {
+            padding: 1.25rem;
+        }
+
+        .subject-card .card-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .btn {
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            transition: var(--hover-transition);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .image-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+            margin-top: 1rem;
+        }
+
+        .image-item {
+            position: relative;
+            aspect-ratio: 1;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: var(--hover-transition);
+        }
+
+        .image-item:hover {
+            transform: scale(1.05);
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .image-delete {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .image-item:hover .image-delete {
+            opacity: 1;
+        }
+
+        .action-btn-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: #6b7280;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #d1d5db;
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+
+        .details-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .details-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+            color: #333;
+        }
+
+        @media (max-width: 767.98px) {
+            .header-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .page-title {
+                order: -1;
+            }
+            
+            .action-btn-group {
+                justify-content: center;
+            }
+            
+            .card {
+                margin-bottom: 1rem;
+            }
+        }
+
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid var(--primary-color);
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+            margin: 2rem auto;
+        }
+
+        @keyframes rotation {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            gap: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <span class="loader"></span>
+        <p>Caricamento dati...</p>
+    </div>
+
+    <div class="container py-4">
+        <!-- Header con logo a sinistra, titolo al centro e logo a destra -->
+        <div class="header-container">
+            <div class="logo">
+                <i class="fas fa-camera"></i>
+            </div>
+            <h1 class="page-title">Dashboard PoggioFace</h1>
+            <div class="logo">
+                <i class="fas fa-user-circle"></i>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <!-- Sezione soggetti (col-md-8 su schermi medi, full width su mobile) -->
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-users me-2"></i>Soggetti</h5>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSubjectModal">
+                            <i class="fas fa-plus me-1"></i> Aggiungi Soggetto
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="subjects-list" class="row g-3">
+                            <!-- I soggetti saranno generati qui dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dettagli soggetto (col-md-4 su schermi medi, full width su mobile) -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Dettagli Soggetto</h5>
+                    </div>
+                    <div class="card-body" id="subject-details">
+                        <div class="empty-state">
+                            <i class="fas fa-user"></i>
+                            <p>Seleziona un soggetto per visualizzare i dettagli</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
+    
+    <!-- Modal Aggiungi Soggetto -->
+    <div class="modal fade" id="addSubjectModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Aggiungi Nuovo Soggetto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-subject-form">
+                        <div class="mb-3">
+                            <label for="subject-name" class="form-label">Nome Soggetto</label>
+                            <input type="text" class="form-control" id="subject-name" placeholder="Inserisci il nome" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="subject-image" class="form-label">Immagine</label>
+                            <input type="file" class="form-control" id="subject-image" accept="image/*" required>
+                            <div class="form-text">Seleziona un'immagine chiara del volto del soggetto.</div>
+                        </div>
+                        <div id="image-preview-container" class="mt-3 d-none">
+                            <label class="form-label">Anteprima</label>
+                            <div class="text-center">
+                                <img id="image-preview" class="img-fluid rounded" style="max-height: 200px;" alt="Anteprima">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Annulla
+                    </button>
+                    <button type="button" class="btn btn-primary" id="save-subject-btn">
+                        <i class="fas fa-save me-1"></i> Salva
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Rinomina Soggetto -->
+    <div class="modal fade" id="renameSubjectModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Rinomina Soggetto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="rename-subject-form">
+                        <input type="hidden" id="old-subject-name">
+                        <div class="mb-3">
+                            <label for="new-subject-name" class="form-label">Nuovo Nome</label>
+                            <input type="text" class="form-control" id="new-subject-name" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Annulla
+                    </button>
+                    <button type="button" class="btn btn-primary" id="rename-subject-btn">
+                        <i class="fas fa-check me-1"></i> Rinomina
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Aggiungi Foto -->
+    <div class="modal fade" id="addImageModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-camera me-2"></i>Aggiungi Immagine per <span id="add-image-subject-name"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-image-form">
+                        <input type="hidden" id="image-subject-name">
+                        <div class="mb-3">
+                            <label for="new-subject-image" class="form-label">Immagine</label>
+                            <input type="file" class="form-control" id="new-subject-image" accept="image/*" required>
+                            <div class="form-text">Seleziona un'immagine chiara del volto del soggetto.</div>
+                        </div>
+                        <div id="new-image-preview-container" class="mt-3 d-none">
+                            <label class="form-label">Anteprima</label>
+                            <div class="text-center">
+                                <img id="new-image-preview" class="img-fluid rounded" style="max-height: 200px;" alt="Anteprima">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Annulla
+                    </button>
+                    <button type="button" class="btn btn-primary" id="add-image-btn">
+                        <i class="fas fa-plus me-1"></i> Aggiungi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Conferma Eliminazione -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Conferma Eliminazione</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirm-delete-message">Sei sicuro di voler eliminare questo elemento?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Annulla
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirm-delete-btn">
+                        <i class="fas fa-trash me-1"></i> Elimina
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>
