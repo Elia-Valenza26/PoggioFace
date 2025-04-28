@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Soggetti - CompreFace</title>
+</head>
+<body>
+    <h1>Gestione Soggetti</h1>
+
+    <h2>Lista Soggetti</h2>
+    <button onclick="loadSubjects()">Carica Soggetti</button>
+    <div id="subjects-list"></div>
+
+    <h2>Aggiungi Soggetto</h2>
+    <form id="add-subject-form" enctype="multipart/form-data">
+        Nome soggetto: <input type="text" name="subject" required><br><br>
+        Immagine: <input type="file" name="image" accept="image/*" required><br><br>
+        <button type="submit">Aggiungi</button>
+    </form>
+
+    <h2>Elimina Soggetto</h2>
+    <form id="delete-subject-form">
+        Nome soggetto: <input type="text" id="delete-subject-name" required><br><br>
+        <button type="submit">Elimina Soggetto</button>
+    </form>
+
+    <h2>Elimina Immagine</h2>
+    <form id="delete-image-form">
+        ID Immagine: <input type="text" id="delete-image-id" required><br><br>
+        <button type="submit">Elimina Immagine</button>
+    </form>
+
+    <script>
+        function loadSubjects() {
+            fetch('/subjects')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('subjects-list');
+                    container.innerHTML = '';
+                    for (const [subject, images] of Object.entries(data)) {
+                        container.innerHTML += `<h3>${subject}</h3><ul>` + images.map(id => `<li>${id}</li>`).join('') + '</ul>';
+                    }
+                });
+        }
+
+        document.getElementById('add-subject-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch('/subjects', {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json())
+              .then(data => {
+                  alert('Soggetto aggiunto!');
+                  loadSubjects();
+              }).catch(err => alert('Errore: ' + err));
+        });
+
+        document.getElementById('delete-subject-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const subjectName = document.getElementById('delete-subject-name').value;
+
+            fetch('/subjects/' + subjectName, {
+                method: 'DELETE'
+            }).then(response => response.json())
+              .then(data => {
+                  alert(data.message || 'Soggetto eliminato!');
+                  loadSubjects();
+              }).catch(err => alert('Errore: ' + err));
+        });
+
+        document.getElementById('delete-image-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const imageId = document.getElementById('delete-image-id').value;
+
+            fetch('/images/' + imageId, {
+                method: 'DELETE'
+            }).then(response => response.json())
+              .then(data => {
+                  alert('Immagine eliminata!');
+                  loadSubjects();
+              }).catch(err => alert('Errore: ' + err));
+        });
+    </script>
+</body>
+</html>
