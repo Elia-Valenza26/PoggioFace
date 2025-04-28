@@ -18,6 +18,13 @@
         <button type="submit">Aggiungi</button>
     </form>
 
+    <h2>Aggiungi Immagine a un Soggetto</h2>
+    <form id="add-image-form" enctype="multipart/form-data">
+        Nome soggetto: <input type="text" id="subject-name" required><br><br>
+        Immagine: <input type="file" name="image" accept="image/*" required><br><br>
+        <button type="submit">Aggiungi Immagine</button>
+    </form>
+
     <h2>Elimina Soggetto</h2>
     <form id="delete-subject-form">
         Nome soggetto: <input type="text" id="delete-subject-name" required><br><br>
@@ -77,8 +84,28 @@
             fetch('/images/' + imageId, {
                 method: 'DELETE'
             }).then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Errore: ' + data.error);
+                } else {
+                    alert('Immagine eliminata!');
+                    loadSubjects();
+                }
+            }).catch(err => alert('Errore di rete: ' + err));
+        });
+
+        // Nuovo codice per aggiungere un'immagine a un soggetto esistente
+        document.getElementById('add-image-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const subjectName = document.getElementById('subject-name').value;
+            const formData = new FormData(this);
+
+            fetch(`/subjects/${subjectName}/images`, {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json())
               .then(data => {
-                  alert('Immagine eliminata!');
+                  alert(data.message || 'Immagine aggiunta con successo!');
                   loadSubjects();
               }).catch(err => alert('Errore: ' + err));
         });

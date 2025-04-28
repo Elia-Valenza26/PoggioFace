@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
+import logging
 import os
 import time
 import requests
@@ -14,6 +15,8 @@ DOMAIN: str = os.getenv('HOST', 'http://localhost')
 PORT: str = os.getenv('PORT', '8000')
 API_KEY: str = os.getenv('API_KEY')
 DETECTION_PROBABILITY_THRESHOLD: float = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD', 0.8))
+
+logging.basicConfig(level=logging.INFO)
 
 # Inizializzazione CompreFace
 compre_face: CompreFace = CompreFace(domain=DOMAIN, port=PORT, options={
@@ -40,6 +43,26 @@ def retry(func, retries=3, delay=2):
         except Exception as e:
             raise Exception(f"Errore imprevisto: {str(e)}")
 
+def retry_with_backoff(func, retries=10, initial_delay=1, max_delay=10, backoff_factor=2):
+    """Retry a function with exponential backoff."""
+    delay = initial_delay
+    last_exception = None
+
+    for attempt in range(retries):
+        try:
+            return func()
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            print(f"Tentativo {attempt+1}/{retries} fallito con errore di connessione: {str(e)}")
+            last_exception = e
+            time.sleep(delay)
+            delay = min(delay * backoff_factor, max_delay)
+        except Exception as e:
+            print(f"Errore non di connessione durante il tentativo {attempt+1}/{retries}: {str(e)}")
+            raise e
+
+    raise last_exception or Exception("Tutti i tentativi falliti")
+
+
 # Funzioni sicure per CompreFace
 def safe_list_faces():
     return face_collection.list()
@@ -58,6 +81,15 @@ def safe_delete_subject(subject_name):
 
 def safe_delete_image(image_id):
     return face_collection.delete(image_id=image_id)
+
+# Funzione per riinizializzare la connessione a CompreFace
+def refresh_compre_face_connection():
+    global recognition, face_collection, subjects
+    # Rinnovare la connessione al server
+    recognition = compre_face.init_face_recognition(API_KEY)
+    face_collection = recognition.get_face_collection()
+    subjects = recognition.get_subjects()
+
 
 # Endpoint Home - Dashboard HTML
 @app.route('/')
@@ -113,39 +145,100 @@ def add_subject():
         return jsonify({"error": f"Errore durante l'aggiunta del soggetto: {str(e)}"}), 500
 
 
+# Endpoint Aggiungi Immagine a un Soggetto Esistente
+@app.route('/subjects/<string:subject_name>/images', methods=['POST'])
+def add_image_to_subject(subject_name):
+    try:
+        # Verifica che il nome del soggetto sia valido
+        all_subjects = retry(lambda: subjects.list(), retries=3, delay=1)
+        
+        if subject_name not in all_subjects.get('subjects', []):
+            return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
+        
+        image = request.files.get('image')
+        
+        if not image:
+            return jsonify({"error": "Immagine è richiesta."}), 400
+
+        # Salvataggio temporaneo dell'immagine
+        temp_path = f"./tmp/{image.filename}"
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)  # Crea la cartella se non esiste
+        image.save(temp_path)
+
+        # Aggiungi l'immagine al soggetto
+        response = retry(lambda: safe_add_image(temp_path, subject_name), retries=3, delay=1)
+
+        os.remove(temp_path)  # Pulisci il file temporaneo dopo l'uso
+
+        # Verifica la risposta
+        if 'image_id' not in response:
+            return jsonify({"error": "Errore durante l'aggiunta dell'immagine."}), 500
+
+        return jsonify({"message": f"Immagine aggiunta con successo al soggetto '{subject_name}'."}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Errore durante l'aggiunta dell'immagine: {str(e)}"}), 500
+
+
 # Endpoint Eliminazione Soggetto + Immagini
 @app.route('/subjects/<string:subject_name>', methods=['DELETE'])
 def delete_subject(subject_name):
     try:
-        retry(lambda: safe_delete_all_subject_faces(subject_name), retries=3, delay=1)
-        retry(lambda: safe_delete_subject(subject_name), retries=3, delay=1)
+        logging.info(f"Inizio eliminazione del soggetto: {subject_name}")
+        
+        # Recupera tutte le immagini associate al soggetto
+        all_faces = retry(safe_list_faces, retries=3, delay=1)
+        subject_images = [face['image_id'] for face in all_faces.get('faces', []) if face['subject'] == subject_name]
+
+        # Elimina tutte le immagini prima di eliminare il soggetto
+        for image_id in subject_images:
+            retry_with_backoff(lambda: safe_delete_image(image_id), retries=5, initial_delay=1, max_delay=5, backoff_factor=2)
+
+        # Elimina il soggetto dopo che tutte le immagini sono state rimosse
+        retry_with_backoff(lambda: safe_delete_subject(subject_name), retries=5, initial_delay=1, max_delay=5, backoff_factor=2)
+
+        # Rinnova la connessione a CompreFace
+        refresh_compre_face_connection()
+        logging.info(f"Soggetto '{subject_name}' e tutte le immagini associate eliminate con successo.")
         return jsonify({"message": f"Soggetto '{subject_name}' e tutte le immagini associate eliminate."})
+
     except Exception as e:
+        logging.error(f"Errore durante la cancellazione del soggetto {subject_name}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Endpoint Eliminazione Immagine Specifica
 @app.route('/images/<string:image_id>', methods=['DELETE'])
 def delete_image(image_id):
-    try: 
-        time.sleep(0.5)
-        subject_dict = list_subjects().get_json()
-        # Recupera il nome del soggetto associato all'immagine passata in input
-        subject_name = next((subject for subject, images in subject_dict.items() if image_id in images), None)
-
-        # conta il numero di immagini associate al soggetto
-        if subject_name is None:
-            return jsonify({"error": "Immagine o soggetto non trovato"}), 404
+    try:
+        # Ottieni le informazioni sull'immagine in una richiesta separata
+        all_faces = face_collection.list()
         
-        # Se il soggetto ha più immagini, elimina solo l'immagine in input
-        if len(subject_dict[subject_name]) > 1:
-            response = retry(lambda: safe_delete_image(image_id), retries=3, delay=1)
-            return jsonify(response)
+        # Elabora le informazioni localmente
+        subject_name = None
+        image_count = 0
+        
+        for face in all_faces.get('faces', []):
+            if face['image_id'] == image_id:
+                subject_name = face['subject']
+        
+        if subject_name is None:
+            return jsonify({"error": "Immagine non trovata"}), 404
+        
+        # Conta le immagini per questo soggetto
+        for face in all_faces.get('faces', []):
+            if face['subject'] == subject_name:
+                image_count += 1
+        
+        # Ora esegui l'operazione di eliminazione in modo sincrono
+        if image_count > 1:
+            # Elimina solo l'immagine
+            face_collection.delete(image_id=image_id)
+            return jsonify({"message": "Immagine eliminata con successo."})
         else:
-            # Se il soggetto ha solo un'immagine, elimina il soggetto completo
-            retry(lambda: safe_delete_all_subject_faces(subject_name), retries=3, delay=1)
-            retry(lambda: safe_delete_subject(subject_name), retries=3, delay=1)
-            return jsonify({"message": f"Poiché il soggetto '{subject_name}' ha solo un'immagine, il soggetto è stato eliminato."})
-
+            retry(lambda: safe_delete_all_subject_faces(subject_name), retries=5, delay=2)
+            retry(lambda: safe_delete_subject(subject_name), retries=5, delay=2)
+            refresh_compre_face_connection()
+            return jsonify({"message": f"Soggetto '{subject_name}' e tutte le immagini associate eliminate."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
