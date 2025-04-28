@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, Response, request, jsonify, render_template
 from dotenv import load_dotenv
 import logging
 import os
@@ -90,11 +90,27 @@ def refresh_compre_face_connection():
     face_collection = recognition.get_face_collection()
     subjects = recognition.get_subjects()
 
+@app.route('/proxy/images/<uuid:image_id>')
+def proxy_image(image_id):
+    try:
+        url = f"{DOMAIN}:{PORT}/api/v1/recognition/faces/{image_id}/img"
+        headers = {'x-api-key': API_KEY}
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            return Response(
+                response.content,
+                content_type=response.headers['Content-Type']
+            )
+        return Response(b'', status=404)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Endpoint Home - Dashboard HTML
 @app.route('/')
 def index():
-    return render_template('dashboard2.html')
+    compreface_base_url = f"{DOMAIN}:{PORT}"
+    return render_template('dashboard2.html', compreface_base_url=compreface_base_url)
 
 # Endpoint Lista Soggetti + Immagini
 @app.route('/subjects', methods=['GET'])
