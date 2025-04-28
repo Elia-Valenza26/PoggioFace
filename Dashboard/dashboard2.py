@@ -195,6 +195,32 @@ def add_image_to_subject(subject_name):
     except Exception as e:
         return jsonify({"error": f"Errore durante l'aggiunta dell'immagine: {str(e)}"}), 500
 
+# Endpoint Rinominazione Soggetto
+@app.route('/subjects/<string:old_subject_name>', methods=['PUT'])
+def rename_subject(old_subject_name):
+    try:
+        data = request.get_json()
+        new_subject_name = data.get('new_name')
+        
+        if not new_subject_name:
+            return jsonify({"error": "Il nuovo nome del soggetto è richiesto."}), 400
+
+        response = retry_with_backoff(
+            lambda: subjects.update(old_subject_name, new_subject_name),
+            retries=5,
+            initial_delay=1,
+            max_delay=5,
+            backoff_factor=2
+        )
+
+        if response.get('updated'):
+            refresh_compre_face_connection()
+            return jsonify({"message": f"Soggetto '{old_subject_name}' rinominato in '{new_subject_name}'."}), 200
+        return jsonify({"error": "Rinominazione fallita"}), 400
+
+    except Exception as e:
+        logging.error(f"Errore durante la rinominazione: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # Endpoint Eliminazione Soggetto + Immagini
 @app.route('/subjects/<string:subject_name>', methods=['DELETE'])

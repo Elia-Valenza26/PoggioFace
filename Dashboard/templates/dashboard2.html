@@ -37,6 +37,13 @@
         <button type="submit">Elimina Immagine</button>
     </form>
 
+    <h2>Rinomina Soggetto</h2>
+    <form id="rename-subject-form">
+        Vecchio nome: <input type="text" id="old-subject-name" required><br><br>
+        Nuovo nome: <input type="text" id="new-subject-name" required><br><br>
+        <button type="submit">Rinomina</button>
+    </form>
+
     <script>
         function loadSubjects() {
                 fetch('/subjects')
@@ -118,6 +125,28 @@
                   alert(data.message || 'Immagine aggiunta con successo!');
                   loadSubjects();
               }).catch(err => alert('Errore: ' + err));
+        });
+        
+        document.getElementById('rename-subject-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const oldName = document.getElementById('old-subject-name').value;
+            const newName = document.getElementById('new-subject-name').value;
+
+            fetch(`/subjects/${oldName}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ new_name: newName })
+            }).then(response => response.json())
+            .then(data => {
+                if(data.error) {
+                    alert('Errore: ' + data.error);
+                } else {
+                    alert(data.message);
+                    loadSubjects();
+                }
+            }).catch(err => alert('Errore: ' + err));
         });
     </script>
 </body>
