@@ -189,6 +189,9 @@ async function recognizeFromVideo() {
     });
 }
 
+
+let lastRequestTime = 0;  // Variabile per tenere traccia dell'ultima richiesta
+
 // Rendering del frame con la logica di pulizia delle scritte
 function renderFrame() {
     if (!isRunning) return;
@@ -225,15 +228,22 @@ function renderFrame() {
                         ctx.textAlign = 'right';
                         ctx.fillText(`Similarità: ${similarityScore.toFixed(2)}`, canvas.width - 20, canvas.height - 40);
 
-                        fetch('nonloso', {
-                            method: 'POST', // O 'POST' a seconda delle necessità
-                        }).then(response => {
-                            if (!response.ok) {
-                                console.error('Errore nella richiesta a pace.com');
-                            }
-                        }).catch(error => {
-                            console.error('Errore nella richiesta a pace.com:', error);
-                        });
+                        // Verifica se sono trascorsi almeno 3 secondi dall'ultima richiesta
+                        const currentTime = new Date().getTime();
+                        if (currentTime - lastRequestTime >= 3000) {  // 3000 ms = 3 secondi
+                            fetch('http://10.10.11.19/relay/0?turn=on', {
+                                method: 'POST', 
+                            }).then(response => {
+                                if (!response.ok) {
+                                    console.error('Errore nella richiesta allo Shelly');
+                                } else {
+                                    console.info('Richiesta inviata correttamente');
+                                    lastRequestTime = currentTime;  // Aggiorna il timestamp dell'ultima richiesta
+                                }
+                            }).catch(error => {
+                                console.error('Errore nella richiesta allo Shelly', error);
+                            });
+                        }
                     }
                 }
             }
