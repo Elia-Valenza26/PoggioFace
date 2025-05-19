@@ -231,7 +231,8 @@ function renderFrame() {
                         // Verifica se sono trascorsi almeno 3 secondi dall'ultima richiesta
                         const currentTime = new Date().getTime();
                         if (currentTime - lastRequestTime >= 3000) {  // 3000 ms = 3 secondi
-                            fetch('http://10.10.11.19/relay/0?turn=on', {
+                            // URL SHELLY: http://10.10.11.19/relay/0?turn=on 
+                            fetch('prova', {
                                 method: 'POST', 
                             }).then(response => {
                                 if (!response.ok) {
