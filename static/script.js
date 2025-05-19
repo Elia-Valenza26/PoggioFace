@@ -230,20 +230,21 @@ function renderFrame() {
 
                         // Verifica se sono trascorsi almeno 3 secondi dall'ultima richiesta
                         const currentTime = new Date().getTime();
-                        if (currentTime - lastRequestTime >= 3000) {  // 3000 ms = 3 secondi
+                        if (currentTime - lastRequestTime >= 5000) {  // 3000 ms = 3 secondi
                             // URL SHELLY: http://10.10.11.19/relay/0?turn=on 
-                            fetch('prova', {
+                            fetch('http://10.10.11.19/relay/0?turn=on', {
                                 method: 'POST', 
                             }).then(response => {
                                 if (!response.ok) {
                                     console.error('Errore nella richiesta allo Shelly');
                                 } else {
                                     console.info('Richiesta inviata correttamente');
-                                    lastRequestTime = currentTime;  // Aggiorna il timestamp dell'ultima richiesta
+                                      // Aggiorna il timestamp dell'ultima richiesta
                                 }
                             }).catch(error => {
                                 console.error('Errore nella richiesta allo Shelly', error);
                             });
+                            lastRequestTime = currentTime;
                         }
                     }
                 }
