@@ -3,6 +3,12 @@ let compreface_base_url;
 let selectedSubject = null;
 let allSubjects = {};
 
+// Variabili per webcam
+let webcamStream = null;
+let currentInputTarget = null;
+let currentPreviewTarget = null;
+let currentPreviewContainer = null;
+
 // Caricamento iniziale
 document.addEventListener('DOMContentLoaded', function() {
     // Nascondi l'overlay di caricamento alla fine dell'inizializzazione
@@ -58,19 +64,147 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event listener per il pulsante di conferma eliminazione
     document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
+
+    // Event listener per cattura foto - nuova implementazione
+    document.getElementById('capture-photo-btn').addEventListener('click', function() {
+        openWebcamModal('subject-image', 'image-preview', 'image-preview-container');
+    });
+
+    document.getElementById('capture-new-photo-btn').addEventListener('click', function() {
+        openWebcamModal('new-subject-image', 'new-image-preview', 'new-image-preview-container');
+    });
+
+    // Event listener per il modal webcam
+    setupWebcamModal();
 });
 
-// Funzione per recuperare tutti i soggetti con gestione degli errori migliorata
+// Funzione per configurare il modal webcam
+function setupWebcamModal() {
+    const webcamModal = document.getElementById('webcamModal');
+    const video = document.getElementById('webcam-video');
+    const canvas = document.getElementById('webcam-canvas');
+    const captureBtn = document.getElementById('capture-btn');
+    const retakeBtn = document.getElementById('retake-btn');
+    const usePhotoBtn = document.getElementById('use-photo-btn');
+    const capturedImage = document.getElementById('captured-image');
+    const webcamPreview = document.getElementById('webcam-preview');
+
+    // Quando il modal si apre
+    webcamModal.addEventListener('shown.bs.modal', async function() {
+        try {
+            webcamStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                } 
+            });
+            video.srcObject = webcamStream;
+            
+            // Reset UI
+            captureBtn.style.display = 'inline-block';
+            retakeBtn.style.display = 'none';
+            usePhotoBtn.style.display = 'none';
+            webcamPreview.style.display = 'none';
+            video.style.display = 'block';
+            
+        } catch (error) {
+            console.error('Errore accesso webcam:', error);
+            showToast('Impossibile accedere alla webcam: ' + error.message, 'danger');
+        }
+    });
+
+    // Quando il modal si chiude
+    webcamModal.addEventListener('hidden.bs.modal', function() {
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(track => track.stop());
+            webcamStream = null;
+        }
+    });
+
+    // Cattura foto
+    captureBtn.addEventListener('click', function() {
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Disegna il frame corrente sul canvas
+        context.drawImage(video, 0, 0);
+        
+        // Converte in immagine
+        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        capturedImage.src = imageDataUrl;
+        
+        // Aggiorna UI
+        video.style.display = 'none';
+        webcamPreview.style.display = 'block';
+        captureBtn.style.display = 'none';
+        retakeBtn.style.display = 'inline-block';
+        usePhotoBtn.style.display = 'inline-block';
+    });
+
+    // Riprova foto
+    retakeBtn.addEventListener('click', function() {
+        video.style.display = 'block';
+        webcamPreview.style.display = 'none';
+        captureBtn.style.display = 'inline-block';
+        retakeBtn.style.display = 'none';
+        usePhotoBtn.style.display = 'none';
+    });
+
+    // Usa la foto
+    usePhotoBtn.addEventListener('click', function() {
+        // Converte l'immagine in File object
+        canvas.toBlob(function(blob) {
+            const timestamp = new Date().getTime();
+            const file = new File([blob], `webcam_capture_${timestamp}.jpg`, { type: 'image/jpeg' });
+            
+            // Aggiorna l'input file
+            const input = document.getElementById(currentInputTarget);
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            input.files = dataTransfer.files;
+            
+            // Mostra anteprima
+            const preview = document.getElementById(currentPreviewTarget);
+            const previewContainer = document.getElementById(currentPreviewContainer);
+            
+            preview.src = capturedImage.src;
+            previewContainer.classList.remove('d-none');
+            
+            // Trigger change event
+            const changeEvent = new Event('change', { bubbles: true });
+            input.dispatchEvent(changeEvent);
+            
+            // Chiudi modal
+            const modal = bootstrap.Modal.getInstance(webcamModal);
+            modal.hide();
+            
+            showToast('Foto catturata con successo!', 'success');
+            
+        }, 'image/jpeg', 0.8);
+    });
+}
+
+// Funzione per aprire il modal webcam
+function openWebcamModal(inputId, previewId, previewContainerId) {
+    currentInputTarget = inputId;
+    currentPreviewTarget = previewId;
+    currentPreviewContainer = previewContainerId;
+    
+    const modal = new bootstrap.Modal(document.getElementById('webcamModal'));
+    modal.show();
+}
+
+// Resto delle funzioni esistenti...
 async function fetchSubjects() {
     try {
         const response = await fetch('/subjects');
         
         if (!response.ok) {
             if (response.status === 0) {
-                // Problema di connessione di rete
                 console.warn('Problema di connessione alla rete. Attesa e nuovo tentativo...');
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Attesa di 2 secondi
-                return fetchSubjects(); // Riprova
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return fetchSubjects();
             }
             throw new Error(`Errore del server HTTP: ${response.status}`);
         }
@@ -82,7 +216,6 @@ async function fetchSubjects() {
     } catch (error) {
         console.error('Errore durante il recupero dei soggetti:', error);
         
-        // Se è un errore di rete, aspetta un po' e riprova
         if (error.name === 'TypeError' && error.message.includes('NetworkError')) {
             console.warn('Errore di rete. Riprovando tra 2 secondi...');
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -94,7 +227,6 @@ async function fetchSubjects() {
     }
 }
 
-// Funzione per renderizzare la lista dei soggetti
 function renderSubjectsList(subjects) {
     const subjectsList = document.getElementById('subjects-list');
     subjectsList.innerHTML = '';
@@ -140,90 +272,28 @@ function renderSubjectsList(subjects) {
             </div>
         `;
 
+        // Event listeners per i pulsanti (rimuovo quello per add-image-btn)
+        card.querySelector('.view-btn').addEventListener('click', function() {
+            showSubjectDetails(this.getAttribute('data-subject'));
+        });
+
+        card.querySelector('.rename-btn').addEventListener('click', function() {
+            openRenameModal(this.getAttribute('data-subject'));
+        });
+
+        card.querySelector('.delete-btn').addEventListener('click', function() {
+            openDeleteSubjectModal(this.getAttribute('data-subject'));
+        });
+
         subjectsList.appendChild(card);
-
-        // Event listeners
-        card.querySelector('.view-btn').addEventListener('click', function () {
-            const subject = this.getAttribute('data-subject');
-            showSubjectDetails(subject);
-        });
-
-        card.querySelector('.rename-btn').addEventListener('click', function () {
-            const subject = this.getAttribute('data-subject');
-            openRenameModal(subject);
-        });
-
-        card.querySelector('.delete-btn').addEventListener('click', function () {
-            const subject = this.getAttribute('data-subject');
-            openDeleteSubjectModal(subject);
-        });
     }
 }
-
-// Funzione per mostrare i dettagli di un soggetto
-// function showSubjectDetails(subject) {
-//     selectedSubject = subject;
-//     const subjectImages = allSubjects[subject] || [];
-//     const detailsContainer = document.getElementById('subject-details');
-    
-//     detailsContainer.innerHTML = `
-//         <div class="details-header">
-//             <h3 class="details-title">${subject}</h3>
-//             <div class="action-btn-group">
-//                 <button class="btn btn-sm btn-outline-primary action-btn" id="add-photo-btn">
-//                     <i class="fas fa-camera"></i> Aggiungi Foto
-//                 </button>
-//                 <button class="btn btn-sm btn-outline-warning action-btn" id="rename-btn">
-//                     <i class="fas fa-edit"></i> Rinomina
-//                 </button>
-//                 <button class="btn btn-sm btn-outline-danger action-btn" id="delete-btn">
-//                     <i class="fas fa-trash"></i> Elimina
-//                 </button>
-//             </div>
-//         </div>
-//         <hr>
-//         <p><strong>Numero di immagini:</strong> ${subjectImages.length}</p>
-//         <div class="image-container">
-//             ${subjectImages.map(imageId => `
-//                 <div class="image-item">
-//                     <img src="/proxy/images/${imageId}" alt="${subject}">
-//                     <button class="image-delete" data-image-id="${imageId}">
-//                         <i class="fas fa-times"></i>
-//                     </button>
-//                 </div>
-//             `).join('')}
-//         </div>
-//     `;
-    
-//     // Aggiungi event listener per i pulsanti di azione
-//     document.getElementById('add-photo-btn').addEventListener('click', function() {
-//         openAddImageModal(subject);
-//     });
-    
-//     document.getElementById('rename-btn').addEventListener('click', function() {
-//         openRenameModal(subject);
-//     });
-    
-//     document.getElementById('delete-btn').addEventListener('click', function() {
-//         openDeleteSubjectModal(subject);
-//     });
-    
-//     // Aggiungi event listener per i pulsanti di eliminazione immagine
-//     const deleteButtons = detailsContainer.querySelectorAll('.image-delete');
-//     deleteButtons.forEach(button => {
-//         button.addEventListener('click', function() {
-//             const imageId = this.getAttribute('data-image-id');
-//             openDeleteImageModal(imageId, subject);
-//         });
-//     });
-// }
 
 function showSubjectDetails(subject) {
     selectedSubject = subject;
     const subjectImages = allSubjects[subject] || [];
-
+    
     const detailsContainer = document.getElementById('subject-details');
-
     detailsContainer.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">${subject}</h4>
@@ -237,8 +307,11 @@ function showSubjectDetails(subject) {
             </div>
         </div>
         <hr>
+        
+        <p class="text-muted mb-3">Numero di immagini: ${subjectImages.length}</p>
+        
         ${subjectImages.length === 0 ? `
-            <div class="empty-state text-center py-4">
+            <div class="empty-state">
                 <i class="fas fa-image fa-2x text-muted mb-2"></i>
                 <p class="text-muted mb-0">Nessuna immagine disponibile per questo soggetto.</p>
             </div>
@@ -265,8 +338,8 @@ function showSubjectDetails(subject) {
         openDeleteSubjectModal(subject);
     });
 
-    const deleteButtons = detailsContainer.querySelectorAll('.image-delete');
-    deleteButtons.forEach(button => {
+    // Event listeners per i pulsanti di eliminazione immagine
+    document.querySelectorAll('.image-delete').forEach(button => {
         button.addEventListener('click', function () {
             const imageId = this.getAttribute('data-image-id');
             openDeleteImageModal(imageId, subject);
@@ -274,11 +347,6 @@ function showSubjectDetails(subject) {
     });
 }
 
-
-
-
-
-// Funzione per aprire il modal di aggiunta immagine
 function openAddImageModal(subject) {
     document.getElementById('image-subject-name').value = subject;
     document.getElementById('add-image-subject-name').textContent = subject;
@@ -289,7 +357,6 @@ function openAddImageModal(subject) {
     modal.show();
 }
 
-// Funzione per aprire il modal di rinomina soggetto
 function openRenameModal(subject) {
     document.getElementById('old-subject-name').value = subject;
     document.getElementById('new-subject-name').value = subject;
@@ -298,12 +365,10 @@ function openRenameModal(subject) {
     modal.show();
 }
 
-// Funzione per aprire il modal di conferma eliminazione soggetto
 function openDeleteSubjectModal(subject) {
     const message = `Sei sicuro di voler eliminare il soggetto "${subject}" e tutte le sue immagini associate? Questa azione non può essere annullata.`;
     document.getElementById('confirm-delete-message').textContent = message;
     
-    // Imposta i dati per l'eliminazione
     document.getElementById('confirm-delete-btn').setAttribute('data-action', 'delete-subject');
     document.getElementById('confirm-delete-btn').setAttribute('data-subject', subject);
     
@@ -311,12 +376,10 @@ function openDeleteSubjectModal(subject) {
     modal.show();
 }
 
-// Funzione per aprire il modal di conferma eliminazione immagine
 function openDeleteImageModal(imageId, subject) {
     const message = `Sei sicuro di voler eliminare questa immagine del soggetto "${subject}"? Questa azione non può essere annullata.`;
     document.getElementById('confirm-delete-message').textContent = message;
     
-    // Imposta i dati per l'eliminazione
     document.getElementById('confirm-delete-btn').setAttribute('data-action', 'delete-image');
     document.getElementById('confirm-delete-btn').setAttribute('data-image-id', imageId);
     
@@ -324,7 +387,6 @@ function openDeleteImageModal(imageId, subject) {
     modal.show();
 }
 
-// Funzione per aggiungere un nuovo soggetto
 async function addSubject() {
     const subjectName = document.getElementById('subject-name').value.trim();
     const subjectImage = document.getElementById('subject-image').files[0];
@@ -334,7 +396,6 @@ async function addSubject() {
         return;
     }
     
-    // Controlla se il soggetto esiste già
     if (allSubjects[subjectName]) {
         showToast(`Il soggetto "${subjectName}" esiste già. Scegli un altro nome.`, 'warning');
         return;
@@ -358,21 +419,16 @@ async function addSubject() {
             throw new Error(result.error || 'Errore durante l\'aggiunta del soggetto');
         }
         
-        // Aggiorna la lista dei soggetti
         await fetchSubjects();
         
-        // Chiudi il modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('addSubjectModal'));
         modal.hide();
         
-        // Resetta il form
         document.getElementById('subject-name').value = '';
         document.getElementById('subject-image').value = '';
         document.getElementById('image-preview-container').classList.add('d-none');
         
         showToast(`Soggetto "${subjectName}" aggiunto con successo.`, 'success');
-        
-        // Mostra i dettagli del nuovo soggetto
         showSubjectDetails(subjectName);
     } catch (error) {
         console.error('Errore durante l\'aggiunta del soggetto:', error);
@@ -382,7 +438,6 @@ async function addSubject() {
     }
 }
 
-// Funzione per rinominare un soggetto
 async function renameSubject() {
     const oldName = document.getElementById('old-subject-name').value;
     const newName = document.getElementById('new-subject-name').value.trim();
@@ -393,13 +448,11 @@ async function renameSubject() {
     }
     
     if (oldName === newName) {
-        // Chiudi il modal se non ci sono cambiamenti
         const modal = bootstrap.Modal.getInstance(document.getElementById('renameSubjectModal'));
         modal.hide();
         return;
     }
     
-    // Controlla se il nuovo nome esiste già
     if (allSubjects[newName]) {
         showToast(`Il soggetto "${newName}" esiste già. Scegli un altro nome.`, 'warning');
         return;
@@ -422,21 +475,15 @@ async function renameSubject() {
             throw new Error(result.error || 'Errore durante la rinominazione del soggetto');
         }
         
-        // Chiudi il modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('renameSubjectModal'));
         modal.hide();
         
         showToast(`Soggetto rinominato da "${oldName}" a "${newName}" con successo.`, 'success');
         
-        // Attendere un breve periodo prima di aggiornare la lista per dare tempo al server
         setTimeout(async () => {
-            // Aggiorna la lista dei soggetti
             await fetchSubjects();
-            
-            // Aggiorna il soggetto selezionato
             selectedSubject = newName;
             showSubjectDetails(newName);
-            
             document.getElementById('loading-overlay').style.display = 'none';
         }, 1000);
     } catch (error) {
@@ -446,7 +493,6 @@ async function renameSubject() {
     }
 }
 
-// Funzione per aggiungere un'immagine a un soggetto
 async function addImageToSubject() {
     const subject = document.getElementById('image-subject-name').value;
     const image = document.getElementById('new-subject-image').files[0];
@@ -473,24 +519,17 @@ async function addImageToSubject() {
             throw new Error(result.error || 'Errore durante l\'aggiunta dell\'immagine');
         }
         
-        // Chiudi il modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('addImageModal'));
         modal.hide();
         
-        // Resetta il form
         document.getElementById('new-subject-image').value = '';
         document.getElementById('new-image-preview-container').classList.add('d-none');
         
         showToast(`Immagine aggiunta al soggetto "${subject}" con successo.`, 'success');
         
-        // Attendi un breve periodo prima di aggiornare
         setTimeout(async () => {
-            // Aggiorna la lista dei soggetti
             await fetchSubjects();
-            
-            // Aggiorna i dettagli del soggetto
             showSubjectDetails(subject);
-            
             document.getElementById('loading-overlay').style.display = 'none';
         }, 1000);
     } catch (error) {
@@ -500,11 +539,9 @@ async function addImageToSubject() {
     }
 }
 
-// Funzione migliorata per gestire la conferma di eliminazione
 async function confirmDelete() {
     const action = document.getElementById('confirm-delete-btn').getAttribute('data-action');
     
-    // Chiudi il modal prima di iniziare il processo di eliminazione
     const modal = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
     modal.hide();
     
@@ -524,32 +561,25 @@ async function confirmDelete() {
     }
 }
 
-// Funzione migliorata per eliminare un soggetto
 async function deleteSubject() {
     const subject = document.getElementById('confirm-delete-btn').getAttribute('data-subject');
     
     try {
-        // Memorizza l'elenco delle immagini per questo soggetto prima dell'eliminazione
         const subjectImages = [...(allSubjects[subject] || [])];
         
-        // Mostra messaggio di elaborazione
         showToast(`Eliminazione del soggetto "${subject}" in corso...`, 'info');
         
-        // Prima elimina singolarmente tutte le immagini
         for (const imageId of subjectImages) {
             try {
                 await fetch(`/images/${imageId}`, {
                     method: 'DELETE'
                 });
-                // Breve pausa tra le eliminazioni per non sovraccaricare il server
                 await new Promise(resolve => setTimeout(resolve, 200));
             } catch (error) {
                 console.warn(`Errore durante l'eliminazione dell'immagine ${imageId}: ${error.message}`);
-                // Continua con le altre immagini anche se una fallisce
             }
         }
         
-        // Poi elimina il soggetto
         const response = await fetch(`/subjects/${subject}`, {
             method: 'DELETE'
         });
@@ -559,27 +589,20 @@ async function deleteSubject() {
             throw new Error(result.error || 'Errore durante l\'eliminazione del soggetto');
         }
         
-        // Attendere che il server finisca di elaborare
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Aggiorna la lista dei soggetti
         await fetchSubjects();
         
         showToast(`Soggetto "${subject}" eliminato con successo.`, 'success');
-        
-        // Ripristina il pannello dei dettagli
         resetDetailsPanel();
     } catch (error) {
         throw error;
     }
 }
 
-// Funzione migliorata per eliminare un'immagine
 async function deleteImage() {
     const imageId = document.getElementById('confirm-delete-btn').getAttribute('data-image-id');
     
     try {
-        // Prima determina a quale soggetto appartiene l'immagine
         let imageSubject = null;
         for (const [subject, images] of Object.entries(allSubjects)) {
             if (images.includes(imageId)) {
@@ -599,19 +622,15 @@ async function deleteImage() {
             throw new Error(result.error || 'Errore durante l\'eliminazione dell\'immagine');
         }
         
-        // Attendere che il server finisca di elaborare
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         showToast('Immagine eliminata con successo.', 'success');
         
-        // Aggiorna la lista dei soggetti
         const updatedSubjects = await fetchSubjects();
         
-        // Se il soggetto esiste ancora e corrisponde a quello selezionato, aggiorna i dettagli
         if (imageSubject && selectedSubject === imageSubject && updatedSubjects[imageSubject]) {
             showSubjectDetails(imageSubject);
         } else {
-            // Altrimenti, reimposta il pannello dei dettagli
             resetDetailsPanel();
         }
     } catch (error) {
@@ -619,7 +638,6 @@ async function deleteImage() {
     }
 }
 
-// Funzione per ripristinare il pannello dei dettagli
 function resetDetailsPanel() {
     selectedSubject = null;
     const detailsContainer = document.getElementById('subject-details');
@@ -631,12 +649,10 @@ function resetDetailsPanel() {
     `;
 }
 
-// Funzione migliorata per mostrare un toast di notifica
 function showToast(message, type = 'info') {
     const toastContainer = document.querySelector('.toast-container');
     const toastId = 'toast-' + Date.now();
     
-    // Rimuovi toast esistenti dello stesso tipo se necessario
     const existingToasts = toastContainer.querySelectorAll(`.bg-${type}`);
     if (existingToasts.length > 2) {
         existingToasts[0].remove();
@@ -667,7 +683,6 @@ function showToast(message, type = 'info') {
     
     bsToast.show();
     
-    // Rimuovi il toast dal DOM dopo che è stato nascosto
     toast.addEventListener('hidden.bs.toast', function() {
         toast.remove();
     });

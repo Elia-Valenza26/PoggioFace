@@ -232,7 +232,7 @@ function renderFrame() {
                         const currentTime = new Date().getTime();
                         if (currentTime - lastRequestTime >= 5000) {  // 3000 ms = 3 secondi
                             // URL SHELLY: http://10.10.11.19/relay/0?turn=on 
-                            fetch('http://10.10.11.19/relay/0?turn=on', {
+                            fetch('pace', {
                                 method: 'POST', 
                             }).then(response => {
                                 if (!response.ok) {

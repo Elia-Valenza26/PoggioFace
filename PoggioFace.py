@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, Response
+from flask_cors import CORS 
 from dotenv import load_dotenv
 import os
 import logging
-import requests
-import json
+import time
+import datetime
 
 # Carica le variabili di ambiente dal file .env
 load_dotenv()
@@ -22,10 +23,11 @@ detection_prob_threshold = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD'))
 similarity_threshold = float(os.getenv('SIMILARITY_THRESHOLD'))
 face_plugins = os.getenv('FACE_PLUGINS')
 
+CORS(app)  # Abilita CORS per tutte le rotte
+
 # Variabile per tracciare lo stato del riconoscimento
 recognition_active = True
 
-# Passa le variabili d'ambiente al template
 @app.route('/')
 def home():
     config = {
@@ -38,6 +40,9 @@ def home():
     }
     return render_template('PoggioFace.html', config=config)
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # No Content
 
 @app.route('/log', methods=['POST'])
 def log_message():
@@ -63,7 +68,6 @@ def get_config():
         'similarityThreshold': similarity_threshold,
         'facePlugins': face_plugins
     })
-
 
 # Avvio del server Flask
 if __name__ == '__main__':
