@@ -9,6 +9,8 @@ let currentInputTarget = null;
 let currentPreviewTarget = null;
 let currentPreviewContainer = null;
 
+const POGGIO_FACE_URL = 'http://localhost:5002';
+
 // Caricamento iniziale
 document.addEventListener('DOMContentLoaded', function() {
     // Nascondi l'overlay di caricamento alla fine dell'inizializzazione
@@ -81,108 +83,99 @@ document.addEventListener('DOMContentLoaded', function() {
 // Funzione per configurare il modal webcam
 function setupWebcamModal() {
     const webcamModal = document.getElementById('webcamModal');
-    const video = document.getElementById('webcam-video');
-    const canvas = document.getElementById('webcam-canvas');
-    const captureBtn = document.getElementById('capture-btn');
-    const retakeBtn = document.getElementById('retake-btn');
-    const usePhotoBtn = document.getElementById('use-photo-btn');
-    const capturedImage = document.getElementById('captured-image');
-    const webcamPreview = document.getElementById('webcam-preview');
-
+    const modalBody = webcamModal.querySelector('.modal-body');
+    
     // Quando il modal si apre
     webcamModal.addEventListener('shown.bs.modal', async function() {
         try {
-            webcamStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                } 
-            });
-            video.srcObject = webcamStream;
+            // Sostituisci il contenuto del modal con un iframe
+            modalBody.innerHTML = `
+                <div class="text-center">
+                    <p class="mb-3">Connessione alla webcam remota in corso...</p>
+                    <iframe id="remote-capture-frame" 
+                            src="${POGGIO_FACE_URL}/capture_remote_photo" 
+                            style="width: 100%; height: 500px; border: none; border-radius: 8px;"
+                            allow="camera">
+                    </iframe>
+                </div>
+            `;
             
-            // Reset UI
-            captureBtn.style.display = 'inline-block';
-            retakeBtn.style.display = 'none';
-            usePhotoBtn.style.display = 'none';
-            webcamPreview.style.display = 'none';
-            video.style.display = 'block';
+            // Ascolta i messaggi dall'iframe
+            window.addEventListener('message', handleRemotePhoto);
             
         } catch (error) {
-            console.error('Errore accesso webcam:', error);
-            showToast('Impossibile accedere alla webcam: ' + error.message, 'danger');
+            console.error('Errore apertura cattura remota:', error);
+            showToast('Impossibile accedere alla webcam remota: ' + error.message, 'danger');
         }
     });
 
     // Quando il modal si chiude
     webcamModal.addEventListener('hidden.bs.modal', function() {
-        if (webcamStream) {
-            webcamStream.getTracks().forEach(track => track.stop());
-            webcamStream = null;
-        }
-    });
-
-    // Cattura foto
-    captureBtn.addEventListener('click', function() {
-        const context = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Pulisci l'iframe
+        modalBody.innerHTML = `
+            <div id="webcam-container">
+                <video id="webcam-video" autoplay muted style="max-width: 100%; border-radius: 8px;"></video>
+                <canvas id="webcam-canvas" style="display: none;"></canvas>
+            </div>
+            <div class="mt-3">
+                <button type="button" class="btn btn-primary" id="capture-btn">
+                    <i class="fas fa-camera me-1"></i> Scatta Foto
+                </button>
+                <button type="button" class="btn btn-warning" id="retake-btn" style="display: none;">
+                    <i class="fas fa-redo me-1"></i> Riprova
+                </button>
+            </div>
+            <div id="webcam-preview" class="mt-3" style="display: none;">
+                <img id="captured-image" style="max-width: 100%; border-radius: 8px;" alt="Foto catturata">
+            </div>
+        `;
         
-        // Disegna il frame corrente sul canvas
-        context.drawImage(video, 0, 0);
-        
-        // Converte in immagine
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        capturedImage.src = imageDataUrl;
-        
-        // Aggiorna UI
-        video.style.display = 'none';
-        webcamPreview.style.display = 'block';
-        captureBtn.style.display = 'none';
-        retakeBtn.style.display = 'inline-block';
-        usePhotoBtn.style.display = 'inline-block';
+        // Rimuovi listener
+        window.removeEventListener('message', handleRemotePhoto);
     });
+}
 
-    // Riprova foto
-    retakeBtn.addEventListener('click', function() {
-        video.style.display = 'block';
-        webcamPreview.style.display = 'none';
-        captureBtn.style.display = 'inline-block';
-        retakeBtn.style.display = 'none';
-        usePhotoBtn.style.display = 'none';
-    });
-
-    // Usa la foto
-    usePhotoBtn.addEventListener('click', function() {
-        // Converte l'immagine in File object
-        canvas.toBlob(function(blob) {
-            const timestamp = new Date().getTime();
-            const file = new File([blob], `webcam_capture_${timestamp}.jpg`, { type: 'image/jpeg' });
-            
-            // Aggiorna l'input file
-            const input = document.getElementById(currentInputTarget);
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            input.files = dataTransfer.files;
-            
-            // Mostra anteprima
-            const preview = document.getElementById(currentPreviewTarget);
-            const previewContainer = document.getElementById(currentPreviewContainer);
-            
-            preview.src = capturedImage.src;
-            previewContainer.classList.remove('d-none');
-            
-            // Trigger change event
-            const changeEvent = new Event('change', { bubbles: true });
-            input.dispatchEvent(changeEvent);
-            
-            // Chiudi modal
-            const modal = bootstrap.Modal.getInstance(webcamModal);
-            modal.hide();
-            
-            showToast('Foto catturata con successo!', 'success');
-            
-        }, 'image/jpeg', 0.8);
-    });
+// Gestisce la foto ricevuta dalla cattura remota
+function handleRemotePhoto(event) {
+    // Verifica che il messaggio venga dall'iframe corretto
+    if (event.data && event.data.type === 'photo_captured') {
+        const photoData = event.data.data;
+        
+        // Converte base64 in File object
+        fetch(photoData)
+            .then(res => res.blob())
+            .then(blob => {
+                const timestamp = new Date().getTime();
+                const file = new File([blob], `remote_capture_${timestamp}.jpg`, { type: 'image/jpeg' });
+                
+                // Aggiorna l'input file
+                const input = document.getElementById(currentInputTarget);
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                input.files = dataTransfer.files;
+                
+                // Mostra anteprima
+                const preview = document.getElementById(currentPreviewTarget);
+                const previewContainer = document.getElementById(currentPreviewContainer);
+                
+                preview.src = photoData;
+                previewContainer.classList.remove('d-none');
+                
+                // Trigger change event
+                const changeEvent = new Event('change', { bubbles: true });
+                input.dispatchEvent(changeEvent);
+                
+                // Chiudi modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('webcamModal'));
+                modal.hide();
+                
+                showToast('Foto catturata dalla webcam remota con successo!', 'success');
+            })
+            .catch(error => {
+                console.error('Errore conversione foto:', error);
+                showToast('Errore durante la conversione della foto: ' + error.message, 'danger');
+            });
+    }
 }
 
 // Funzione per aprire il modal webcam

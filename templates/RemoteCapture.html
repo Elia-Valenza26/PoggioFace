@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cattura Foto Remota - PoggioFace</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4ade80;
+            --danger-color: #f87171;
+            --warning-color: #fbbf24;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--danger-color) 0%, var(--primary-color) 100%);
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .capture-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            margin: 10px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header-section {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 0.75rem;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .header-section h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .video-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+            min-height: 0;
+        }
+
+        #webcam-video, #captured-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .controls-section {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1rem;
+            text-align: center;
+            flex-shrink: 0;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .btn {
+            border-radius: 25px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 0.25rem;
+            min-width: 120px;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, var(--success-color), #22c55e);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 222, 128, 0.4);
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, var(--warning-color), #f59e0b);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(251, 191, 36, 0.4);
+        }
+
+        .spinner-border {
+            color: var(--primary-color);
+        }
+
+        .alert-success {
+            background: linear-gradient(45deg, var(--success-color), #22c55e);
+            border: none;
+            color: white;
+            border-radius: 10px;
+            margin: 0;
+        }
+
+        .alert-danger {
+            background: linear-gradient(45deg, var(--danger-color), #ef4444);
+            border: none;
+            color: white;
+            border-radius: 10px;
+            margin: 0.5rem 0 0 0;
+        }
+
+        .status-message {
+            font-size: 1rem;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .capture-container {
+                margin: 5px;
+                border-radius: 10px;
+            }
+            
+            .header-section {
+                padding: 0.5rem;
+            }
+            
+            .header-section h2 {
+                font-size: 1.1rem;
+            }
+            
+            .controls-section {
+                padding: 0.75rem;
+            }
+            
+            .btn {
+                min-width: 100px;
+                padding: 0.6rem 1.2rem;
+                margin: 0.125rem;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .header-section {
+                padding: 0.5rem;
+            }
+            
+            .controls-section {
+                padding: 0.5rem;
+            }
+            
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="capture-container">
+        <!-- Header compatto -->
+        <div class="header-section">
+            <h2><i class="fas fa-camera me-2"></i>Cattura Foto Remota</h2>
+        </div>
+        
+        <!-- Area video principale - occupa tutto lo spazio disponibile -->
+        <div class="video-area">
+            <div id="video-container" class="w-100 h-100">
+                <video id="webcam-video" autoplay muted playsinline></video>
+                <canvas id="webcam-canvas" style="display: none;"></canvas>
+            </div>
+            
+            <div id="preview-container" class="w-100 h-100" style="display: none;">
+                <img id="captured-preview" alt="Foto catturata">
+            </div>
+        </div>
+        
+        <!-- Controlli essenziali -->
+        <div class="controls-section">
+            <div id="capture-controls">
+                <button id="capture-btn" class="btn btn-primary">
+                    <i class="fas fa-camera me-2"></i>Scatta Foto
+                </button>
+            </div>
+            
+            <div id="preview-controls" style="display: none;">
+                <button id="retake-btn" class="btn btn-warning">
+                    <i class="fas fa-redo me-2"></i>Riprova
+                </button>
+                <button id="send-btn" class="btn btn-success">
+                    <i class="fas fa-check me-2"></i>Invia
+                </button>
+            </div>
+            
+            <div id="sending-controls" style="display: none;">
+                <div class="d-flex align-items-center justify-content-center">
+                    <div class="spinner-border me-2" role="status">
+                        <span class="visually-hidden">Invio in corso...</span>
+                    </div>
+                    <span class="status-message">Invio in corso...</span>
+                </div>
+            </div>
+            
+            <div id="success-controls" style="display: none;">
+                <div class="alert alert-success" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Foto inviata con successo!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let webcamStream = null;
+        let capturedPhotoData = null;
+
+        // Elementi DOM
+        const video = document.getElementById('webcam-video');
+        const canvas = document.getElementById('webcam-canvas');
+        const preview = document.getElementById('captured-preview');
+        const videoContainer = document.getElementById('video-container');
+        const previewContainer = document.getElementById('preview-container');
+        const captureControls = document.getElementById('capture-controls');
+        const previewControls = document.getElementById('preview-controls');
+        const sendingControls = document.getElementById('sending-controls');
+        const successControls = document.getElementById('success-controls');
+
+        // Inizializza webcam
+        async function initWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "user"
+                    }
+                });
+                video.srcObject = webcamStream;
+                
+                video.addEventListener('loadedmetadata', () => {
+                    console.log('Webcam inizializzata correttamente');
+                });
+                
+            } catch (error) {
+                console.error('Errore accesso webcam:', error);
+                showError('Impossibile accedere alla webcam: ' + error.message);
+            }
+        }
+
+        // Cattura foto
+        function capturePhoto() {
+            try {
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth || 1280;
+                canvas.height = video.videoHeight || 720;
+                
+                // Disegna il frame corrente
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Ottieni i dati dell'immagine con qualità alta
+                capturedPhotoData = canvas.toDataURL('image/jpeg', 0.9);
+                preview.src = capturedPhotoData;
+                
+                // Mostra anteprima
+                videoContainer.style.display = 'none';
+                previewContainer.style.display = 'block';
+                captureControls.style.display = 'none';
+                previewControls.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Errore cattura foto:', error);
+                showError('Errore durante la cattura della foto: ' + error.message);
+            }
+        }
+
+        // Riprova foto
+        function retakePhoto() {
+            videoContainer.style.display = 'block';
+            previewContainer.style.display = 'none';
+            captureControls.style.display = 'block';
+            previewControls.style.display = 'none';
+            capturedPhotoData = null;
+            clearErrors();
+        }
+
+        // Invia foto al backend
+        async function sendPhoto() {
+            if (!capturedPhotoData) {
+                showError('Nessuna foto da inviare');
+                return;
+            }
+
+            previewControls.style.display = 'none';
+            sendingControls.style.display = 'block';
+            clearErrors();
+
+            try {
+                const response = await fetch('/remote_photo_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        photo_data: capturedPhotoData
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    sendingControls.style.display = 'none';
+                    successControls.style.display = 'block';
+                    
+                    // Invia messaggio al parent window se siamo in iframe
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'photo_captured',
+                            data: capturedPhotoData
+                        }, '*');
+                    }
+                } else {
+                    throw new Error(result.error || 'Errore durante l\'invio');
+                }
+
+            } catch (error) {
+                console.error('Errore invio foto:', error);
+                showError('Errore durante l\'invio: ' + error.message);
+                
+                sendingControls.style.display = 'none';
+                previewControls.style.display = 'block';
+            }
+        }
+
+        // Mostra errore
+        function showError(message) {
+            clearErrors();
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger error-message';
+            errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
+            
+            const controlsSection = document.querySelector('.controls-section');
+            controlsSection.appendChild(errorDiv);
+            
+            // Rimuovi l'errore dopo 5 secondi
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Pulisci errori
+        function clearErrors() {
+            const errors = document.querySelectorAll('.error-message');
+            errors.forEach(error => error.remove());
+        }
+
+        // Event listeners
+        document.getElementById('capture-btn').addEventListener('click', capturePhoto);
+        document.getElementById('retake-btn').addEventListener('click', retakePhoto);
+        document.getElementById('send-btn').addEventListener('click', sendPhoto);
+
+        // Inizializza quando la pagina è caricata
+        window.addEventListener('DOMContentLoaded', initWebcam);
+
+        // Pulisci risorse quando la pagina viene chiusa
+        window.addEventListener('beforeunload', () => {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+            }
+        });
+
+        // Gestione tasti keyboard per usabilità
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' && captureControls.style.display !== 'none') {
+                event.preventDefault();
+                capturePhoto();
+            } else if (event.code === 'Enter' && previewControls.style.display !== 'none') {
+                event.preventDefault();
+                sendPhoto();
+            } else if (event.code === 'Escape' && previewControls.style.display !== 'none') {
+                event.preventDefault();
+                retakePhoto();
+            }
+        });
+    </script>
+</body>
+</html>

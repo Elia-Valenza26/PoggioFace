@@ -69,6 +69,37 @@ def get_config():
         'facePlugins': face_plugins
     })
 
+@app.route('/capture_remote_photo', methods=['GET'])
+def capture_remote_photo():
+    """
+    Endpoint che serve una pagina di cattura foto per uso remoto
+    """
+    return render_template('RemoteCapture.html')
+
+@app.route('/remote_photo_data', methods=['POST'])
+def remote_photo_data():
+    """
+    Endpoint che riceve la foto catturata e la restituisce come base64
+    """
+    try:
+        data = request.get_json()
+        photo_data = data.get('photo_data')
+        
+        if not photo_data:
+            return jsonify({"error": "Nessun dato foto ricevuto"}), 400
+        
+        # La foto è già in formato base64 dal frontend
+        return jsonify({
+            "success": True,
+            "photo_data": photo_data,
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Errore durante la cattura remota: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
+
+
 # Avvio del server Flask
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002)
