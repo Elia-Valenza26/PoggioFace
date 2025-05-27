@@ -1,9 +1,8 @@
 # PoggioFace - Sistema di Riconoscimento Facciale
 
-Un sistema completo di riconoscimento facciale sviluppato in Python con Flask per il controllo degli accessi biometrici, implementato presso il **Collegio di Merito IPE Poggiolevante**.
+Un sistema completo di ***riconoscimento facciale*** sviluppato in Python con Flask per il controllo degli accessi biometrici, implementato presso il **Collegio di Merito IPE Poggiolevante**.
 
-![Python](https://img.shields.io/badge/python-v3.8+-blue.svg)
-![Flask](https://img.shields.io/badge/flask-v2.3.3-green.svg)
+---
 
 ## 🎯 Panoramica
 
@@ -98,6 +97,9 @@ SIMILARITY_THRESHOLD=0.85
 # Plugin facciali
 FACE_PLUGINS=age,gender
 
+# URL Shelly
+SHELLY_URL=http://shellyUrl
+
 # URL PoggioFace
 POGGIO_FACE_URL=http://localhost
 ```
@@ -140,8 +142,10 @@ PoggioFace/
 ### Applicazione Principale
 - `GET /` - Interfaccia di riconoscimento
 - `POST /log` - Endpoint per logging
+- `POST /shelly_url`: Endpoint per aprire la porta
 - `GET /config` - Configurazione frontend
 - `GET /capture_remote_photo` - Cattura foto remota
+- `POST /remote_photo_data`: Riceve e processa foto catturate remotamente
 
 ## 🎮 Utilizzo
 
@@ -161,9 +165,9 @@ PoggioFace/
 ## 📚 Documentazione
 
 Per documentazione completa, architettura del sistema e guide avanzate, consulta:
-- [Documentazione Completa](Doc.md)
-- [Guida Installazione Dettagliata](Doc.md#installazione-e-deployment)
-- [API Reference](Doc.md#api-e-endpoints)
+- [Documentazione Completa](Doc/Doc.md)
+- [Guida Installazione Dettagliata](Doc/Doc.md#installazione-e-deployment)
+- [API Reference](Doc/Doc.md#api-e-endpoints)
 
 
 ## 🤝 Contributi

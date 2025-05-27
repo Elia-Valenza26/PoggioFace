@@ -33,7 +33,7 @@ Il sistema è stato implementato nel **Collegio di Merito IPE Poggiolevante**, a
 
 Il sistema PoggioFace segue un'architettura modulare composta da diversi componenti che collaborano per fornire un servizio completo di riconoscimento facciale.
 
-![Workflow del Sistema](Doc/Image/workflow.png)
+![Workflow del Sistema](Image/workflow.png)
 
 
 ### Flusso di Funzionamento
@@ -67,7 +67,7 @@ PoggioFace/
 │   └── tmp/                      # File temporanei dashboard
 │
 ├── Doc/                          # Directory documentazione
-│   ├── pace1                     # File documentazione
+│   ├── Doc.md                    # File documentazione
 │   └── Image/
 │       └── workflow.png          # Diagramma workflow sistema
 │
@@ -99,6 +99,9 @@ API_KEY=your_api_key_here               # Chiave API CompreFace
 # Indirizzo PoggioFace per scattare foto
 POGGIO_FACE_URL=http://localhost
 
+# Indirizzo Shelly
+SHELLY_URL=http://indirizzoShelly
+
 # Soglie di riconoscimento
 DETECTION_PROBABILITY_THRESHOLD=0.8      # Soglia rilevamento volti
 SIMILARITY_THRESHOLD=0.85               # Soglia somiglianza riconoscimento
@@ -128,6 +131,7 @@ Il file principale che gestisce l'interfaccia di riconoscimento facciale.
 - `GET /`: Pagina principale con interfaccia di riconoscimento
 - `POST /log`: Endpoint per logging dal frontend
 - `GET /config`: Configurazione per il frontend
+- `POST /shelly_url`: Endpoint per aprire la porta
 - `GET /capture_remote_photo`: Interfaccia per cattura foto remota
 - `POST /remote_photo_data`: Riceve e processa foto catturate remotamente
 - `GET /favicon.ico`: Gestione favicon
@@ -176,25 +180,6 @@ La dashboard offre un'interfaccia completa per la gestione dei soggetti:
    - Possibilità di rifare la foto
    - Integrazione seamless con form
 
-#### Componenti UI
-
-**Modal Aggiungi Soggetto:**
-```html
-<div class="modal fade" id="addSubjectModal">
-    <!-- Form per nome soggetto -->
-    <!-- Upload file o cattura webcam -->
-    <!-- Anteprima immagine -->
-</div>
-```
-
-**Modal Webcam:**
-```html
-<div class="modal fade" id="webcamModal">
-    <!-- Video stream -->
-    <!-- Controlli cattura -->
-    <!-- Anteprima foto catturata -->
-</div>
-```
 
 ### JavaScript Dashboard (Dashboard/static/Dashboard.js)
 
@@ -235,7 +220,21 @@ function setupWebcamModal()            // Configura modal webcam
 | DELETE | `/images/<id>` | Elimina immagine | - |
 | GET | `/proxy/images/<id>` | Proxy immagini CompreFace | - |
 
+### Endpoints PoggioFace (Applicazione Principale)
+
+| Metodo | Endpoint | Descrizione | Parametri |
+|--------|----------|-------------|-----------|
+| GET | `/` | Interfaccia principale di riconoscimento | - |
+| POST | `/log` | Endpoint per logging dal frontend | `message` |
+| GET | `/config` | Configurazione per il frontend | - |
+| POST | `/shelly_url` | Attivazione dispositivo Shelly | - |
+| GET | `/capture_remote_photo` | Interfaccia cattura foto remota | - |
+| POST | `/remote_photo_data` | Riceve foto catturate remotamente | `photo_data` |
+| GET | `/favicon.ico` | Gestione favicon | - |
+
 ### Esempi di Utilizzo API
+
+#### Dashboard Amministrativa
 
 **Aggiungere un soggetto:**
 ```javascript
@@ -248,6 +247,147 @@ const response = await fetch('/subjects', {
     body: formData
 });
 ```
+
+**Rinominare un soggetto:**
+```javascript
+const response = await fetch('/subjects/VecchioNome', {
+    method: 'PUT',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ new_name: 'NuovoNome' })
+});
+```
+
+**Aggiungere immagine a soggetto esistente:**
+```javascript
+const formData = new FormData();
+formData.append('image', imageFile);
+
+const response = await fetch('/subjects/MarioRossi/images', {
+    method: 'POST',
+    body: formData
+});
+```
+
+**Eliminare un soggetto:**
+```javascript
+const response = await fetch('/subjects/MarioRossi', {
+    method: 'DELETE'
+});
+```
+
+**Eliminare un'immagine:**
+```javascript
+const response = await fetch('/images/12345-abcde-67890', {
+    method: 'DELETE'
+});
+```
+
+#### Applicazione Principale
+
+**Invio log dal frontend:**
+```javascript
+fetch('/log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+        message: `${new Date().toLocaleTimeString()}: Utente riconosciuto` 
+    })
+});
+```
+
+**Caricamento configurazione:**
+```javascript
+const response = await fetch('/config');
+const config = await response.json();
+// Ritorna: { apiKey, host, port, detProbThreshold, similarityThreshold, facePlugins, shellyUrl }
+```
+
+**Attivazione dispositivo Shelly:**
+```javascript
+fetch('/shelly_url', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    }
+}).then(response => response.json())
+  .then(data => {
+    console.log(data.message); // "Relay attivato"
+  });
+```
+
+**Invio foto catturata remotamente:**
+```javascript
+const formData = new FormData();
+formData.append('photo', photoBlob, 'remote_photo.jpg');
+
+const response = await fetch('/remote_photo_data', {
+    method: 'POST',
+    body: formData
+});
+```
+
+### Codici di Risposta
+
+#### Successo
+| Codice | Descrizione |
+|--------|-------------|
+| 200 | Operazione completata con successo |
+| 201 | Risorsa creata con successo |
+
+#### Errori Client
+| Codice | Descrizione |
+|--------|-------------|
+| 400 | Richiesta malformata o parametri mancanti |
+| 404 | Risorsa non trovata |
+
+#### Errori Server
+| Codice | Descrizione |
+|--------|-------------|
+| 500 | Errore interno del server |
+| 502 | Errore nella comunicazione con CompreFace/Shelly |
+| 503 | Servizio non disponibile |
+| 504 | Timeout nella comunicazione |
+
+### Formati di Risposta
+
+#### Successo (Dashboard)
+```json
+{
+    "message": "Soggetto 'Mario Rossi' aggiunto con successo."
+}
+```
+
+#### Errore (Dashboard)
+```json
+{
+    "error": "Nome soggetto e immagine sono richiesti."
+}
+```
+
+#### Configurazione (PoggioFace)
+```json
+{
+    "apiKey": "your_api_key",
+    "host": "http://localhost",
+    "port": "8000",
+    "detProbThreshold": 0.8,
+    "similarityThreshold": 0.85,
+    "facePlugins": "age,gender",
+    "shellyUrl": "http://shelly_device_url"
+}
+```
+
+#### Lista Soggetti
+```json
+{
+    "Mario Rossi": ["image_id_1", "image_id_2"],
+    "Giulia Bianchi": ["image_id_3", "image_id_4", "image_id_5"]
+}
+```
+
+
 
 ## Interfaccia di Riconoscimento
 
@@ -347,30 +487,103 @@ if (!image) {
 
 ### Sistema di Trigger
 
-Il riconoscimento può triggerare azioni hardware:
+Il riconoscimento può triggerare azioni hardware tramite l'attivazione di dispositivi Shelly:
 
 ```javascript
 if (subjects[0].similarity >= config.similarityThreshold) {
     // Verifica timeout (5 secondi)
+    const currentTime = new Date().getTime();
     if (currentTime - lastRequestTime >= 5000) {
-        fetch('pace', { method: 'POST' })
-            .then(response => {
-                console.info('Richiesta inviata correttamente');
-                lastRequestTime = currentTime;
-            });
+        // Chiamata all'endpoint locale che gestirà la chiamata Shelly
+        fetch('/shelly_url', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => {
+            if (!response.ok) {
+                console.error('Errore nella richiesta allo Shelly');
+                log('Errore nella richiesta allo Shelly');
+            } else {
+                console.info('Richiesta Shelly inviata correttamente');
+                log('Dispositivo Shelly attivato correttamente');
+            }
+            return response.json();
+        }).then(data => {
+            if (data.error) {
+                log(`Errore Shelly: ${data.error}`);
+            } else {
+                log(`Shelly: ${data.message}`);
+            }
+        }).catch(error => {
+            console.error('Errore nella richiesta allo Shelly', error);
+            log(`Errore connessione Shelly: ${error.message}`);
+        });
+        lastRequestTime = currentTime;
     }
 }
 ```
 
+### Configurazione URL Shelly
+
+L'indirizzo del dispositivo Shelly viene configurato tramite variabile d'ambiente nel file `.env`:
+
+```env
+# Configurazione dispositivo Shelly
+SHELLY_URL=http://shellyUrl
+```
+
 ### Endpoint Shelly
 
+Il backend gestisce la comunicazione con il dispositivo Shelly attraverso un endpoint dedicato:
+
 ```python
-@app.route('/IP_address_shelly', methods=['POST'])
-def pace():
-    # Implementazione controllo hardware
-    # (es. apertura porta, attivazione relay)
-    return jsonify({"status": "success"})
+@app.route('/shelly_url', methods=['POST'])
+def shelly_url_handler():
+    """Endpoint per attivare il relay Shelly"""
+    try:
+        if not shelly_url:
+            return jsonify({"error": "URL Shelly non configurato"}), 400
+            
+        # Effettua la chiamata al dispositivo Shelly
+        response = requests.get(shelly_url, timeout=5)
+        
+        if response.ok:
+            app.logger.info(f"Shelly attivato correttamente: {shelly_url}")
+            return jsonify({"status": "success", "message": "Relay attivato"})
+        else:
+            app.logger.error(f"Errore nella chiamata Shelly: {response.status_code}")
+            return jsonify({"error": f"Errore Shelly: {response.status_code}"}), 502
+            
+    except requests.exceptions.Timeout:
+        app.logger.error("Timeout nella chiamata al dispositivo Shelly")
+        return jsonify({"error": "Timeout dispositivo Shelly"}), 504
+    except requests.exceptions.ConnectionError:
+        app.logger.error("Errore di connessione al dispositivo Shelly")
+        return jsonify({"error": "Dispositivo Shelly non raggiungibile"}), 503
+    except Exception as e:
+        app.logger.error(f"Errore generico nella chiamata Shelly: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
 ```
+
+### Vantaggi dell'Implementazione
+
+1. **Configurazione Centralizzata**: L'URL Shelly è configurabile tramite file `.env`
+2. **Gestione Errori Completa**: Il sistema gestisce timeout, errori di connessione e altri problemi
+3. **Logging Dettagliato**: Tutte le operazioni vengono registrate per debugging
+4. **Sicurezza**: La logica di rete è centralizzata lato server
+5. **Timeout Protection**: Previene chiamate multiple ravvicinate (5 secondi di cooldown)
+6. **Flessibilità**: Facile cambiare dispositivo o configurazione senza modificare il codice
+
+### Codici di Risposta
+
+| Codice | Descrizione |
+|--------|-------------|
+| 200 | Relay attivato correttamente |
+| 400 | URL Shelly non configurato |
+| 502 | Errore nella risposta del dispositivo Shelly |
+| 503 | Dispositivo Shelly non raggiungibile |
+| 504 | Timeout nella comunicazione |
 
 ## Installazione e Deployment
 

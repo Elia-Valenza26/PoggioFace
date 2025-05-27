@@ -5,7 +5,8 @@ let config = {
     port: '',
     detProbThreshold: 0.8,
     similarityThreshold: 0.85,
-    facePlugins: 'age,gender'
+    facePlugins: 'age,gender',
+    shellyUrl:""
 };
 
 let subjectName = "";
@@ -231,18 +232,30 @@ function renderFrame() {
                         // Verifica se sono trascorsi almeno 3 secondi dall'ultima richiesta
                         const currentTime = new Date().getTime();
                         if (currentTime - lastRequestTime >= 5000) {  // 3000 ms = 3 secondi
-                            // URL SHELLY: http://10.10.11.19/relay/0?turn=on 
-                            fetch('pace', {
-                                method: 'POST', 
+                            // Chiamata all'endpoint locale che gestirà la chiamata Shelly
+                            fetch('/shelly_url', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                }
                             }).then(response => {
                                 if (!response.ok) {
                                     console.error('Errore nella richiesta allo Shelly');
+                                    log('Errore nella richiesta allo Shelly');
                                 } else {
-                                    console.info('Richiesta inviata correttamente');
-                                      // Aggiorna il timestamp dell'ultima richiesta
+                                    console.info('Richiesta Shelly inviata correttamente');
+                                    log('Dispositivo Shelly attivato correttamente');
+                                }
+                                return response.json();
+                            }).then(data => {
+                                if (data.error) {
+                                    log(`Errore Shelly: ${data.error}`);
+                                } else {
+                                    log(`Shelly: ${data.message}`);
                                 }
                             }).catch(error => {
                                 console.error('Errore nella richiesta allo Shelly', error);
+                                log(`Errore connessione Shelly: ${error.message}`);
                             });
                             lastRequestTime = currentTime;
                         }

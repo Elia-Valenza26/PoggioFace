@@ -5,6 +5,7 @@ import os
 import logging
 import time
 import datetime
+import requests
 
 # Carica le variabili di ambiente dal file .env
 load_dotenv()
@@ -23,6 +24,8 @@ detection_prob_threshold = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD'))
 similarity_threshold = float(os.getenv('SIMILARITY_THRESHOLD'))
 face_plugins = os.getenv('FACE_PLUGINS')
 
+shelly_url = os.getenv('SHELLY_URL')
+
 # Abilita CORS per tutte le rotte dell'applicazione
 CORS(app)
 
@@ -39,7 +42,8 @@ def home():
         'port': port,
         'detProbThreshold': detection_prob_threshold,
         'similarityThreshold': similarity_threshold,
-        'facePlugins': face_plugins
+        'facePlugins': face_plugins,
+        'shellyUrl': shelly_url
     }
     return render_template('PoggioFace.html', config=config)
 
@@ -49,7 +53,6 @@ def home():
 def favicon():
     return '', 204
     
-
 
 # Endpoint per ricevere i log dal front-end e stamparli nel terminale.
 @app.route('/log', methods=['POST'])
@@ -66,7 +69,6 @@ def log_message():
         return jsonify({"status": "error", "message": "Nessun messaggio fornito"}), 400
 
 
-
 # Endpoint che restituisce la configurazione completa al frontend.
 @app.route('/config')
 def get_config():
@@ -79,7 +81,30 @@ def get_config():
         'facePlugins': face_plugins
     })
 
-
+@app.route('/shelly_url', methods=['POST'])
+def shelly_url_handler():
+        try:
+            if not shelly_url:
+                return jsonify({"error": "URL Shelly non configurato"}), 400                
+            # Effettua la chiamata al dispositivo Shelly
+            response = requests.get(shelly_url, timeout=5)
+            
+            if response.ok:
+                app.logger.info(f"Shelly attivato correttamente: {shelly_url}")
+                return jsonify({"status": "success", "message": "Relay attivato"})
+            else:
+                app.logger.error(f"Errore nella chiamata Shelly: {response.status_code}")
+                return jsonify({"error": f"Errore Shelly: {response.status_code}"}), 502
+                
+        except requests.exceptions.Timeout:
+            app.logger.error("Timeout nella chiamata al dispositivo Shelly")
+            return jsonify({"error": "Timeout dispositivo Shelly"}), 504
+        except requests.exceptions.ConnectionError:
+            app.logger.error("Errore di connessione al dispositivo Shelly")
+            return jsonify({"error": "Dispositivo Shelly non raggiungibile"}), 503
+        except Exception as e:
+            app.logger.error(f"Errore generico nella chiamata Shelly: {str(e)}")
+            return jsonify({"error": f"Errore: {str(e)}"}), 500
 
 # Endpoint che serve una pagina dedicata alla cattura di foto per uso remoto.
 @app.route('/capture_remote_photo', methods=['GET'])
