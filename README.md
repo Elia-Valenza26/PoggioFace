@@ -178,8 +178,3 @@ I contributi sono benvenuti! Per contribuire:
 4. Push al branch (`git push origin feature/AmazingFeature`)
 5. Apri una Pull Request
 
-
-## 👨‍💻 Autore
-
-Sviluppato per il Collegio di Merito IPE Poggiolevante
-
