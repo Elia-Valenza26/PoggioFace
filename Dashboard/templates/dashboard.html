@@ -6,282 +6,7 @@
     <title>Dashboard PoggioFace</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #4361ee;
-            --secondary-color: #3f37c9;
-            --accent-color: #4cc9f0;
-            --success-color: #4ade80;
-            --danger-color: #f87171;
-            --warning-color: #fbbf24;
-            --light-bg: #f8fafc;
-            --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            --hover-transition: all 0.3s ease;
-        }
-
-        body {
-            background-color: var(--light-bg);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .header-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem 0;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .logo {
-            width: auto;
-            height: auto;
-            padding: 0;  /* Rimuovi qualsiasi padding */
-            margin: 0;  /* Rimuovi eventuali margini */
-            background-color: transparent;  /* Assicurati che il fondo sia trasparente */
-            border: none;  /* Assicurati che non ci siano bordi */
-        }
-
-
-
-        .page-title {
-            font-weight: 700;
-            font-size: 2rem;
-            color: var(--primary-color);
-            text-align: center;
-            margin: 0;
-        }
-
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            transition: var(--hover-transition);
-            height: 100%;
-            margin-bottom: 1.5rem;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-        }
-
-        .card-header {
-            background-color: white;
-            border-bottom: 1px solid #f0f0f0;
-            border-radius: 12px 12px 0 0 !important;
-            padding: 1rem 1.25rem;
-        }
-
-        .subject-card {
-            margin-bottom: 20px;
-            transition: var(--hover-transition);
-        }
-
-        .subject-card .card-body {
-            padding: 1.25rem;
-        }
-
-        .subject-card .card-title {
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: #333;
-        }
-
-        .btn {
-            border-radius: 8px;
-            padding: 0.5rem 1rem;
-            font-weight: 500;
-            transition: var(--hover-transition);
-        }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .btn-primary:hover {
-            background-color: var(--secondary-color);
-            border-color: var(--secondary-color);
-        }
-
-        .btn-warning {
-            background-color: var(--warning-color);
-            border-color: var(--warning-color);
-        }
-
-        .btn-danger {
-            background-color: var(--danger-color);
-            border-color: var(--danger-color);
-        }
-
-        .btn-success {
-            background-color: var(--success-color);
-            border-color: var(--success-color);
-        }
-
-        .image-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 15px;
-            margin-top: 1rem;
-        }
-
-        .image-item {
-            position: relative;
-            aspect-ratio: 1;
-            overflow: hidden;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transition: var(--hover-transition);
-        }
-
-        .image-item:hover {
-            transform: scale(1.05);
-        }
-
-        .image-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 8px;
-        }
-
-        .image-delete {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(255, 0, 0, 0.7);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-
-        .image-item:hover .image-delete {
-            opacity: 1;
-        }
-
-        .action-btn-group {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            color: #6b7280;
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            color: #d1d5db;
-        }
-
-        .toast-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1050;
-        }
-
-        .details-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1rem;
-        }
-
-        .details-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin: 0;
-            color: #333;
-        }
-
-        .logo img {
-            width: 60px; /* o la larghezza che desideri */
-            height: auto;  /* Mantieni il rapporto d'aspetto */
-            border: none;  /* Assicurati che non ci sia bordo */
-            background-color: transparent;  /* Rimuovi qualsiasi sfondo */
-            display: block; /* Assicurati che l'immagine non abbia margini indesiderati */
-            margin: 0; /* Rimuovi eventuali margini */
-        }
-
-        @media (max-width: 767.98px) {
-            .header-container {
-                flex-direction: column;
-                gap: 1rem;
-            }
-            
-            .page-title {
-                order: -1;
-            }
-            
-            .action-btn-group {
-                justify-content: center;
-            }
-            
-            .card {
-                margin-bottom: 1rem;
-            }
-        }
-
-        .loader {
-            width: 48px;
-            height: 48px;
-            border: 5px solid var(--primary-color);
-            border-bottom-color: transparent;
-            border-radius: 50%;
-            display: inline-block;
-            box-sizing: border-box;
-            animation: rotation 1s linear infinite;
-            margin: 2rem auto;
-        }
-
-        @keyframes rotation {
-            0% {
-                transform: rotate(0deg);
-            }
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        #loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            flex-direction: column;
-            gap: 1rem;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='Dashboard.css') }}">
 </head>
 <body>
     <!-- Loading Overlay -->
@@ -357,13 +82,32 @@
                         </div>
                         <div class="mb-3">
                             <label for="subject-image" class="form-label">Immagine</label>
-                            <div class="d-flex gap-2 mb-2">
-                                <button type="button" class="btn btn-outline-primary" id="capture-photo-btn">
-                                    <i class="fas fa-camera me-1"></i> Scatta Foto
-                                </button>
-                                <input type="file" class="form-control" id="subject-image" accept="image/*">
+                            <div class="upload-area" id="upload-area-subject">
+                                <div class="upload-content">
+                                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                    <h5>Carica o scatta una foto</h5>
+                                    <p class="text-muted mb-3">Trascina un file qui o scegli un'opzione</p>
+                                    
+                                    <div class="upload-buttons">
+                                        <button type="button" class="btn btn-primary" id="capture-photo-btn">
+                                            <i class="fas fa-camera me-2"></i>Scatta Foto
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('subject-image').click()">
+                                            <i class="fas fa-folder-open me-2"></i>Sfoglia File
+                                        </button>
+                                    </div>
+                                    
+                                    <input type="file" class="d-none" id="subject-image" accept="image/*">
+                                </div>
+                                <div class="upload-preview d-none" id="upload-preview-subject">
+                                    <img id="image-preview" alt="Anteprima">
+                                    <div class="preview-overlay">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="clearPreview('subject')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-text">Seleziona un'immagine dal dispositivo o scatta una foto dalla webcam.</div>
                         </div>
                         <div id="image-preview-container" class="mt-3 d-none">
                             <label class="form-label">Anteprima</label>
@@ -427,13 +171,33 @@
                         <input type="hidden" id="image-subject-name">
                         <div class="mb-3">
                             <label for="new-subject-image" class="form-label">Immagine</label>
-                            <div class="d-flex gap-2 mb-2">
-                                <button type="button" class="btn btn-outline-primary" id="capture-new-photo-btn">
-                                    <i class="fas fa-camera me-1"></i> Scatta Foto
-                                </button>
-                                <input type="file" class="form-control" id="new-subject-image" accept="image/*">
+                            <div class="upload-area" id="upload-area-new">
+                                <div class="upload-content">
+                                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                    <h5>Carica o scatta una foto</h5>
+                                    <p class="text-muted mb-3">Trascina un file qui o scegli un'opzione</p>
+                                    
+                                    <div class="upload-buttons">
+                                        <button type="button" class="btn btn-primary" id="capture-new-photo-btn">
+                                            <i class="fas fa-camera me-2"></i>Scatta Foto
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('new-subject-image').click()">
+                                            <i class="fas fa-folder-open me-2"></i>Sfoglia File
+                                        </button>
+                                    </div>
+                                    
+                                    <input type="file" class="d-none" id="new-subject-image" accept="image/*">
+                                </div>
+                                
+                                <div class="upload-preview d-none" id="upload-preview-new">
+                                    <img id="new-image-preview" alt="Anteprima">
+                                    <div class="preview-overlay">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="clearPreview('new')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-text">Seleziona un'immagine dal dispositivo o scatta una foto dalla webcam.</div>
                         </div>
                         <div id="new-image-preview-container" class="mt-3 d-none">
                             <label class="form-label">Anteprima</label>

@@ -23,13 +23,16 @@ detection_prob_threshold = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD'))
 similarity_threshold = float(os.getenv('SIMILARITY_THRESHOLD'))
 face_plugins = os.getenv('FACE_PLUGINS')
 
-CORS(app)  # Abilita CORS per tutte le rotte
+# Abilita CORS per tutte le rotte dell'applicazione
+CORS(app)
 
-# Variabile per tracciare lo stato del riconoscimento
+# Variabile globale per tracciare lo stato del riconoscimento facciale
 recognition_active = True
 
+# Route principale che serve il template HTML per il riconoscimento facciale
 @app.route('/')
 def home():
+    # Crea un dizionario con la configurazione da passare al template
     config = {
         'apiKey': api_key,
         'host': host,
@@ -40,26 +43,33 @@ def home():
     }
     return render_template('PoggioFace.html', config=config)
 
+
+# Route per il file favicon.ico
 @app.route('/favicon.ico')
 def favicon():
-    return '', 204  # No Content
+    return '', 204
+    
 
+
+# Endpoint per ricevere i log dal front-end e stamparli nel terminale.
 @app.route('/log', methods=['POST'])
 def log_message():
-    """
-    Endpoint per ricevere i log dal front-end e stamparli nel terminale.
-    """
+
     data = request.get_json()
+    
+    # Verifica che il messaggio sia presente nella richiesta
     if 'message' in data:
         message = data['message']
-        app.logger.info(message)  # Scrive nel terminale
+        app.logger.info(message)  # Scrive il messaggio nel terminale
         return jsonify({"status": "success", "message": "Log scritto correttamente"}), 200
     else:
         return jsonify({"status": "error", "message": "Nessun messaggio fornito"}), 400
-    
+
+
+
+# Endpoint che restituisce la configurazione completa al frontend.
 @app.route('/config')
 def get_config():
-    """Endpoint che restituisce la configurazione al frontend"""
     return jsonify({
         'apiKey': api_key,
         'host': host,
@@ -69,37 +79,39 @@ def get_config():
         'facePlugins': face_plugins
     })
 
+
+
+# Endpoint che serve una pagina dedicata alla cattura di foto per uso remoto.
 @app.route('/capture_remote_photo', methods=['GET'])
 def capture_remote_photo():
-    """
-    Endpoint che serve una pagina di cattura foto per uso remoto
-    """
     return render_template('RemoteCapture.html')
 
+
+# Endpoint che riceve una foto catturata dal frontend e la restituisce in formato base64.
 @app.route('/remote_photo_data', methods=['POST'])
 def remote_photo_data():
-    """
-    Endpoint che riceve la foto catturata e la restituisce come base64
-    """
     try:
         data = request.get_json()
         photo_data = data.get('photo_data')
         
+        # Verifica che i dati della foto siano presenti
         if not photo_data:
             return jsonify({"error": "Nessun dato foto ricevuto"}), 400
         
-        # La foto è già in formato base64 dal frontend
+        # Restituisce la foto in formato base64 con timestamp
         return jsonify({
             "success": True,
-            "photo_data": photo_data,
+            "photo_data": photo_data,  # La foto è già in formato base64 dal frontend
             "timestamp": datetime.datetime.now().isoformat()
         })
         
     except Exception as e:
+        # Log dell'errore e risposta di errore al client
         app.logger.error(f"Errore durante la cattura remota: {str(e)}")
         return jsonify({"error": f"Errore: {str(e)}"}), 500
 
 
-# Avvio del server Flask
+# Punto di ingresso dell'applicazione
 if __name__ == '__main__':
+    # Avvia il server Flask in modalità debug su tutte le interfacce di rete
     app.run(debug=True, host='0.0.0.0', port=5002)

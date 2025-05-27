@@ -1,0 +1,504 @@
+/* Definizione delle variabili CSS personalizzate per colori e stili globali */
+:root {
+    --primary-color: #4361ee;        /* Colore primario blu */
+    --secondary-color: #3f37c9;      /* Colore secondario blu scuro */
+    --accent-color: #4cc9f0;         /* Colore di accento azzurro */
+    --success-color: #4ade80;        /* Colore per messaggi di successo */
+    --danger-color: #f87171;         /* Colore per messaggi di errore */
+    --warning-color: #fbbf24;        /* Colore per messaggi di avviso */
+    --light-bg: #f8fafc;            /* Colore di sfondo chiaro */
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);  /* Ombra per le card */
+    --hover-transition: all 0.3s ease;             /* Transizione per effetti hover */
+}
+
+/* Stili per il body della pagina */
+body {
+    background-color: var(--light-bg);  /* Sfondo chiaro */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  /* Font famiglia */
+}
+
+/* Container per l'header della pagina */
+.header-container {
+    display: flex;                    /* Layout flexbox */
+    align-items: center;             /* Allineamento verticale centrale */
+    justify-content: space-between;  /* Distribuzione spazio tra elementi */
+    padding: 1rem 0;                /* Padding verticale */
+    margin-bottom: 2rem;             /* Margine inferiore */
+    border-bottom: 1px solid #e5e7eb; /* Bordo inferiore */
+}
+
+/* Stili per il logo */
+.logo {
+    width: auto;                     /* Larghezza automatica */
+    height: auto;                    /* Altezza automatica */
+    padding: 0;                      /* Nessun padding */
+    margin: 0;                       /* Nessun margine */
+    background-color: transparent;   /* Sfondo trasparente */
+    border: none;                    /* Nessun bordo */
+}
+
+/* Titolo principale della pagina */
+.page-title {
+    font-weight: 700;               /* Grassetto */
+    font-size: 2rem;                /* Dimensione font grande */
+    color: var(--primary-color);    /* Colore primario */
+    text-align: center;             /* Testo centrato */
+    margin: 0;                      /* Nessun margine */
+}
+
+/* Stili base per le card */
+.card {
+    border: none;                   /* Nessun bordo */
+    border-radius: 12px;            /* Angoli arrotondati */
+    box-shadow: var(--card-shadow); /* Ombra */
+    transition: var(--hover-transition); /* Transizione hover */
+    height: 100%;                   /* Altezza piena */
+    margin-bottom: 1.5rem;          /* Margine inferiore */
+}
+
+/* Effetto hover per le card */
+.card:hover {
+    transform: translateY(-5px);     /* Spostamento verso l'alto */
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); /* Ombra più pronunciata */
+}
+
+/* Header delle card */
+.card-header {
+    background-color: white;         /* Sfondo bianco */
+    border-bottom: 1px solid #f0f0f0; /* Bordo inferiore */
+    border-radius: 12px 12px 0 0 !important; /* Angoli superiori arrotondati */
+    padding: 1rem 1.25rem;           /* Padding interno */
+}
+
+/* Card specifiche per le materie */
+.subject-card {
+    margin-bottom: 20px;             /* Margine inferiore */
+    transition: var(--hover-transition); /* Transizione hover */
+}
+
+/* Body delle card materie */
+.subject-card .card-body {
+    padding: 1.25rem;                /* Padding interno */
+}
+
+/* Titolo delle card materie */
+.subject-card .card-title {
+    font-weight: 600;                /* Semi-grassetto */
+    margin-bottom: 1rem;             /* Margine inferiore */
+    color: #333;                     /* Colore grigio scuro */
+}
+
+/* Stili base per i bottoni */
+.btn {
+    border-radius: 8px;              /* Angoli arrotondati */
+    padding: 0.5rem 1rem;            /* Padding interno */
+    font-weight: 500;                /* Peso font medio */
+    transition: var(--hover-transition); /* Transizione hover */
+}
+
+/* Bottone primario */
+.btn-primary {
+    background-color: var(--primary-color);  /* Sfondo colore primario */
+    border-color: var(--primary-color);      /* Bordo colore primario */
+}
+
+/* Hover bottone primario */
+.btn-primary:hover {
+    background-color: var(--secondary-color); /* Sfondo colore secondario */
+    border-color: var(--secondary-color);     /* Bordo colore secondario */
+}
+
+/* Bottone warning */
+.btn-warning {
+    background-color: var(--warning-color);   /* Sfondo colore warning */
+    border-color: var(--warning-color);       /* Bordo colore warning */
+}
+
+/* Bottone danger */
+.btn-danger {
+    background-color: var(--danger-color);    /* Sfondo colore danger */
+    border-color: var(--danger-color);        /* Bordo colore danger */
+}
+
+/* Bottone success */
+.btn-success {
+    background-color: var(--success-color);   /* Sfondo colore success */
+    border-color: var(--success-color);       /* Bordo colore success */
+}
+
+/* Container per griglia di immagini */
+.image-container {
+    display: grid;                            /* Layout grid */
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); /* Colonne responsive */
+    gap: 15px;                               /* Spazio tra elementi */
+    margin-top: 1rem;                        /* Margine superiore */
+}
+
+/* Singolo elemento immagine */
+.image-item {
+    position: relative;                      /* Posizione relativa per overlay */
+    aspect-ratio: 1;                         /* Rapporto aspetto quadrato */
+    overflow: hidden;                        /* Nasconde overflow */
+    border-radius: 8px;                      /* Angoli arrotondati */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Ombra */
+    transition: var(--hover-transition);     /* Transizione hover */
+}
+
+/* Hover elemento immagine */
+.image-item:hover {
+    transform: scale(1.05);                  /* Ingrandimento al hover */
+}
+
+/* Immagine all'interno dell'elemento */
+.image-item img {
+    width: 100%;                            /* Larghezza piena */
+    height: 100%;                           /* Altezza piena */
+    object-fit: cover;                      /* Riempimento mantenendo proporzioni */
+    border-radius: 8px;                     /* Angoli arrotondati */
+}
+
+/* Bottone di eliminazione immagine */
+.image-delete {
+    position: absolute;                     /* Posizione assoluta */
+    top: 8px;                              /* Distanza dal top */
+    right: 8px;                            /* Distanza da destra */
+    background: rgba(255, 0, 0, 0.7);     /* Sfondo rosso semi-trasparente */
+    color: white;                          /* Testo bianco */
+    border: none;                          /* Nessun bordo */
+    border-radius: 50%;                    /* Forma circolare */
+    width: 28px;                           /* Larghezza */
+    height: 28px;                          /* Altezza */
+    font-size: 14px;                       /* Dimensione font */
+    display: flex;                         /* Layout flex */
+    align-items: center;                   /* Allineamento verticale */
+    justify-content: center;               /* Allineamento orizzontale */
+    cursor: pointer;                       /* Cursore pointer */
+    opacity: 0;                            /* Inizialmente nascosto */
+    transition: opacity 0.2s ease;        /* Transizione opacità */
+}
+
+/* Mostra bottone eliminazione al hover */
+.image-item:hover .image-delete {
+    opacity: 1;                            /* Rende visibile */
+}
+
+/* Gruppo bottoni azione */
+.action-btn-group {
+    display: flex;                         /* Layout flex */
+    gap: 0.5rem;                          /* Spazio tra bottoni */
+    flex-wrap: wrap;                      /* Permette wrap su nuova riga */
+}
+
+/* Singolo bottone azione */
+.action-btn {
+    display: flex;                        /* Layout flex */
+    align-items: center;                  /* Allineamento verticale */
+    gap: 0.25rem;                        /* Spazio tra icona e testo */
+}
+
+/* Stato vuoto per contenitori senza contenuto */
+.empty-state {
+    display: flex;                        /* Layout flex */
+    flex-direction: column;               /* Direzione colonna */
+    align-items: center;                  /* Allineamento orizzontale */
+    justify-content: center;              /* Allineamento verticale */
+    padding: 2rem;                        /* Padding interno */
+    color: #6b7280;                       /* Colore grigio */
+}
+
+/* Icona per stato vuoto */
+.empty-state i {
+    font-size: 3rem;                      /* Dimensione grande */
+    margin-bottom: 1rem;                  /* Margine inferiore */
+    color: #d1d5db;                       /* Colore grigio chiaro */
+}
+
+/* Container per notifiche toast */
+.toast-container {
+    position: fixed;                      /* Posizione fissa */
+    bottom: 20px;                         /* Distanza dal bottom */
+    right: 20px;                          /* Distanza da destra */
+    z-index: 1050;                       /* Z-index alto */
+}
+
+/* Header per pagine di dettaglio */
+.details-header {
+    display: flex;                        /* Layout flex */
+    align-items: center;                  /* Allineamento verticale */
+    justify-content: space-between;       /* Distribuzione spazio */
+    margin-bottom: 1rem;                  /* Margine inferiore */
+}
+
+/* Titolo per pagine di dettaglio */
+.details-title {
+    font-size: 1.5rem;                    /* Dimensione font */
+    font-weight: 600;                     /* Semi-grassetto */
+    margin: 0;                            /* Nessun margine */
+    color: #333;                          /* Colore grigio scuro */
+}
+
+/* Immagine del logo */
+.logo img {
+    width: 60px;                          /* Larghezza fissa */
+    height: auto;                         /* Altezza automatica */
+    border: none;                         /* Nessun bordo */
+    background-color: transparent;        /* Sfondo trasparente */
+    display: block;                       /* Display block */
+    margin: 0;                            /* Nessun margine */
+}
+
+/* Media query per dispositivi mobili */
+@media (max-width: 767.98px) {
+    .header-container {
+        flex-direction: column;           /* Direzione colonna */
+        gap: 1rem;                        /* Spazio tra elementi */
+    }
+    
+    .page-title {
+        order: -1;                        /* Ordine primo */
+    }
+    
+    .action-btn-group {
+        justify-content: center;          /* Centrato */
+    }
+    
+    .card {
+        margin-bottom: 1rem;              /* Margine ridotto */
+    }
+}
+
+/* Animazione loader/spinner */
+.loader {
+    width: 48px;                          /* Larghezza */
+    height: 48px;                         /* Altezza */
+    border: 5px solid var(--primary-color); /* Bordo colorato */
+    border-bottom-color: transparent;     /* Bordo inferiore trasparente */
+    border-radius: 50%;                   /* Forma circolare */
+    display: inline-block;                /* Display inline-block */
+    box-sizing: border-box;               /* Box-sizing border-box */
+    animation: rotation 1s linear infinite; /* Animazione rotazione */
+    margin: 2rem auto;                    /* Margine centrato */
+}
+
+/* Keyframes per animazione rotazione */
+@keyframes rotation {
+    0% {
+        transform: rotate(0deg);          /* Rotazione iniziale */
+    }
+    100% {
+        transform: rotate(360deg);        /* Rotazione completa */
+    }
+}
+
+/* Overlay di caricamento */
+#loading-overlay {
+    position: fixed;                      /* Posizione fissa */
+    top: 0;                              /* Top 0 */
+    left: 0;                             /* Left 0 */
+    width: 100%;                         /* Larghezza piena */
+    height: 100%;                        /* Altezza piena */
+    background-color: rgba(255, 255, 255, 0.8); /* Sfondo bianco semi-trasparente */
+    display: flex;                       /* Layout flex */
+    justify-content: center;             /* Centrato orizzontalmente */
+    align-items: center;                 /* Centrato verticalmente */
+    z-index: 9999;                      /* Z-index massimo */
+    flex-direction: column;              /* Direzione colonna */
+    gap: 1rem;                          /* Spazio tra elementi */
+}
+
+/* Area di upload file */
+.upload-area {
+    border: 2px dashed #d1d5db;         /* Bordo tratteggiato */
+    border-radius: 12px;                 /* Angoli arrotondati */
+    background: #f9fafb;                 /* Sfondo grigio chiaro */
+    transition: all 0.3s ease;          /* Transizione completa */
+    overflow: hidden;                    /* Nasconde overflow */
+    position: relative;                  /* Posizione relativa */
+    min-height: 200px;                   /* Altezza minima */
+}
+
+/* Hover area di upload */
+.upload-area:hover {
+    border-color: var(--primary-color);  /* Bordo colore primario */
+    background: #f0f9ff;                 /* Sfondo azzurro chiaro */
+}
+
+/* Area di upload in dragover */
+.upload-area.dragover {
+    border-color: var(--primary-color);  /* Bordo colore primario */
+    background: linear-gradient(135deg, rgba(67, 97, 238, 0.1), rgba(76, 201, 240, 0.1)); /* Gradiente */
+    transform: scale(1.02);              /* Leggero ingrandimento */
+}
+
+/* Contenuto area di upload */
+.upload-content {
+    display: flex;                       /* Layout flex */
+    flex-direction: column;              /* Direzione colonna */
+    align-items: center;                 /* Allineamento orizzontale */
+    justify-content: center;             /* Allineamento verticale */
+    padding: 2rem;                       /* Padding interno */
+    text-align: center;                  /* Testo centrato */
+    height: 100%;                        /* Altezza piena */
+    min-height: 200px;                   /* Altezza minima */
+}
+
+/* Icona area di upload */
+.upload-icon {
+    font-size: 3rem;                     /* Dimensione grande */
+    color: var(--primary-color);         /* Colore primario */
+    margin-bottom: 1rem;                 /* Margine inferiore */
+    opacity: 0.7;                        /* Opacità ridotta */
+}
+
+/* Titolo area di upload */
+.upload-area h5 {
+    color: #374151;                      /* Colore grigio scuro */
+    margin-bottom: 0.5rem;               /* Margine inferiore */
+    font-weight: 600;                    /* Semi-grassetto */
+}
+
+/* Bottoni area di upload */
+.upload-buttons {
+    display: flex;                       /* Layout flex */
+    gap: 0.75rem;                        /* Spazio tra bottoni */
+    flex-wrap: wrap;                     /* Permette wrap */
+    justify-content: center;             /* Centrato */
+}
+
+/* Stili bottoni upload */
+.upload-buttons .btn {
+    border-radius: 25px;                 /* Angoli molto arrotondati */
+    padding: 0.5rem 1.25rem;             /* Padding interno */
+    font-weight: 500;                    /* Peso font medio */
+    transition: all 0.3s ease;          /* Transizione completa */
+}
+
+/* Hover bottoni upload */
+.upload-buttons .btn:hover {
+    transform: translateY(-2px);         /* Spostamento verso l'alto */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Ombra pronunciata */
+}
+
+/* Anteprima upload */
+.upload-preview {
+    position: absolute;                  /* Posizione assoluta */
+    top: 0;                             /* Top 0 */
+    left: 0;                            /* Left 0 */
+    right: 0;                           /* Right 0 */
+    bottom: 0;                          /* Bottom 0 */
+    background: white;                   /* Sfondo bianco */
+    border-radius: 10px;                 /* Angoli arrotondati */
+    overflow: hidden;                    /* Nasconde overflow */
+    display: flex;                       /* Layout flex */
+    align-items: center;                 /* Allineamento verticale */
+    justify-content: center;             /* Allineamento orizzontale */
+    padding: 1rem;                       /* Padding interno */
+}
+
+/* Immagine anteprima */
+.upload-preview img {
+    max-width: 100%;                     /* Larghezza massima */
+    max-height: 100%;                    /* Altezza massima */
+    width: auto;                         /* Larghezza automatica */
+    height: auto;                        /* Altezza automatica */
+    object-fit: contain;                 /* Mantiene proporzioni */
+    border-radius: 8px;                  /* Angoli arrotondati */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Ombra */
+}
+
+/* Overlay anteprima */
+.preview-overlay {
+    position: absolute;                  /* Posizione assoluta */
+    top: 15px;                          /* Distanza dal top */
+    right: 15px;                        /* Distanza da destra */
+    opacity: 0;                         /* Inizialmente nascosto */
+    transition: opacity 0.3s ease;      /* Transizione opacità */
+    z-index: 10;                        /* Z-index alto */
+}
+
+/* Mostra overlay al hover */
+.upload-preview:hover .preview-overlay {
+    opacity: 1;                         /* Rende visibile */
+}
+
+/* Bottone overlay anteprima */
+.preview-overlay .btn {
+    background: rgba(239, 68, 68, 0.9);  /* Sfondo rosso semi-trasparente */
+    border: none;                        /* Nessun bordo */
+    color: white;                        /* Testo bianco */
+    border-radius: 50%;                  /* Forma circolare */
+    width: 36px;                         /* Larghezza */
+    height: 36px;                        /* Altezza */
+    display: flex;                       /* Layout flex */
+    align-items: center;                 /* Allineamento verticale */
+    justify-content: center;             /* Allineamento orizzontale */
+    backdrop-filter: blur(4px);          /* Effetto blur */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* Ombra */
+}
+
+/* Hover bottone overlay */
+.preview-overlay .btn:hover {
+    background: rgba(239, 68, 68, 1);    /* Sfondo rosso opaco */
+    transform: scale(1.1);               /* Ingrandimento */
+}
+
+/* Immagini anteprima con larghezza piena */
+.upload-preview img[style*="width: 100%"] {
+    height: auto;                        /* Altezza automatica */
+    max-height: 80%;                     /* Altezza massima ridotta */
+}
+
+/* Immagini anteprima con altezza piena */
+.upload-preview img[style*="height: 100%"] {
+    width: auto;                         /* Larghezza automatica */
+    max-width: 80%;                      /* Larghezza massima ridotta */
+}
+
+/* Bottone overlay ridimensionato */
+.preview-overlay .btn {
+    background: rgba(239, 68, 68, 0.9);  /* Sfondo rosso semi-trasparente */
+    border: none;                        /* Nessun bordo */
+    color: white;                        /* Testo bianco */
+    border-radius: 50%;                  /* Forma circolare */
+    width: 32px;                         /* Larghezza ridotta */
+    height: 32px;                        /* Altezza ridotta */
+    display: flex;                       /* Layout flex */
+    align-items: center;                 /* Allineamento verticale */
+    justify-content: center;             /* Allineamento orizzontale */
+    backdrop-filter: blur(4px);          /* Effetto blur */
+}
+
+/* Media query per schermi piccoli */
+@media (max-width: 576px) {
+    .upload-preview {
+        padding: 0.5rem;                 /* Padding ridotto */
+    }
+    
+    .upload-preview img {
+        max-width: 100%;                 /* Larghezza massima */
+        max-height: 150px;               /* Altezza massima ridotta */
+    }
+    
+    .preview-overlay {
+        top: 8px;                        /* Distanza ridotta dal top */
+        right: 8px;                      /* Distanza ridotta da destra */
+    }
+    
+    .preview-overlay .btn {
+        width: 28px;                     /* Larghezza più piccola */
+        height: 28px;                    /* Altezza più piccola */
+        font-size: 0.7rem;               /* Font più piccolo */
+    }
+}
+
+/* Area upload con file caricato */
+.upload-area.has-file {
+    border-color: var(--success-color);  /* Bordo verde successo */
+    background: rgba(74, 222, 128, 0.05); /* Sfondo verde chiaro */
+}
+
+/* Area upload con errore */
+.upload-area.has-error {
+    border-color: var(--danger-color);   /* Bordo rosso errore */
+    background: rgba(248, 113, 113, 0.05); /* Sfondo rosso chiaro */
+}

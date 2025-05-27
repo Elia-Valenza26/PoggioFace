@@ -16,32 +16,33 @@
 
 ## Panoramica del Progetto
 
-**PoggioFace** è un sistema completo di riconoscimento facciale sviluppato in Python con Flask, progettato per il controllo degli accessi tramite riconoscimento biometrico. Il sistema utilizza **CompreFace** come motore di riconoscimento facciale e offre un'interfaccia web completa per la gestione dei soggetti e il monitoraggio in tempo reale.
+**PoggioFace** è un sistema completo di ***riconoscimento facciale*** sviluppato in Python con Flask, progettato per il controllo degli accessi tramite riconoscimento biometrico. Il sistema utilizza **CompreFace** come motore di riconoscimento facciale e offre un'interfaccia web completa per la gestione dei soggetti e il monitoraggio in tempo reale.
+
+Il sistema è stato implementato nel **Collegio di Merito IPE Poggiolevante**, affinché gli studenti e i professionisti possano accedere alla struttura tramite il loro volto. 
 
 ### Caratteristiche Principali
-- 🎯 **Riconoscimento facciale in tempo reale** tramite webcam
-- 👥 **Gestione completa dei soggetti** con interfaccia amministrativa
-- 📱 **Interfaccia web responsive** per desktop e mobile
-- 🔧 **Dashboard amministrativa** per CRUD operations sui soggetti
-- 📷 **Cattura foto** sia da file che da webcam
-- 🚪 **Integrazione hardware** per controllo accessi
-- 📊 **Configurazione flessibile** tramite variabili d'ambiente
+- **Riconoscimento facciale in tempo reale** tramite webcam
+- **Gestione completa dei soggetti** con interfaccia amministrativa
+- **Interfaccia web responsive** per desktop e mobile
+- **Dashboard amministrativa** per CRUD operations sui soggetti
+- **Cattura foto** sia da file che da webcam
+- **Integrazione hardware** per controllo accessi
+- **Configurazione flessibile** tramite variabili d'ambiente
 
 ## Architettura del Sistema
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend       │    │   CompreFace    │
-│   (HTML/JS)     │◄───┤   (Flask)       │◄───┤   (AI Engine)   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Webcam        │    │   File System   │    │   Database      │
-│   Interface     │    │   (Images)      │    │   (Subjects)    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
+Il sistema PoggioFace segue un'architettura modulare composta da diversi componenti che collaborano per fornire un servizio completo di riconoscimento facciale.
+
+![Workflow del Sistema](Doc/Image/workflow.png)
+
+
+### Flusso di Funzionamento
+
+1. **Cattura**: La webcam acquisisce frame video in tempo reale
+2. **Processing**: I frame vengono inviati a CompreFace per l'analisi
+3. **Recognition**: Il sistema confronta i volti rilevati con il database
+4. **Action**: In caso di match positivo, viene inviata una chiamata allo Shelly per aprire la porta
+5. **Gestione soggetti**: la dashboard invia delle richieste API al server CompreFace per effettuare delle modifiche al DB. 
 
 ## Struttura dei File
 
@@ -52,23 +53,31 @@ PoggioFace/
 ├── PoggioFace.py                  # Applicazione principale
 ├── README.md                      # Documentazione base
 ├── requirements.txt               # Dipendenze Python
-├── callShelly.txt                 # Note per integrazione hardware
+├── Doc.md                         # Documentazione completa
 │
 ├── Dashboard/                     # Modulo dashboard amministrativa
-│   ├── dashboard.py              # Backend dashboard
+│   ├── Dashboard.py              # Backend dashboard
 │   ├── static/
-│   │   ├── dashboard.js          # JavaScript dashboard
+│   │   ├── Dashboard.css         # Stili dashboard
+│   │   ├── Dashboard.js          # JavaScript dashboard
 │   │   └── logoPoggiolevante.png # Logo aziendale
-│   └── templates/
-│       ├── dashboard.html        # Interfaccia dashboard
-│       └── Test_API.html         # Pagina test API
+│   ├── templates/
+│   │   ├── Dashboard.html        # Interfaccia dashboard
+│   │   └── Test_API.html         # Pagina test API
+│   └── tmp/                      # File temporanei dashboard
+│
+├── Doc/                          # Directory documentazione
+│   ├── pace1                     # File documentazione
+│   └── Image/
+│       └── workflow.png          # Diagramma workflow sistema
 │
 ├── static/                       # Asset statici applicazione principale
-│   ├── script.js                # JavaScript riconoscimento
-│   └── style.css               # Stili CSS
+│   ├── PoggioFace.js            # JavaScript riconoscimento (non script.js)
+│   └── style.css                # Stili CSS
 │
 ├── templates/                    # Template HTML applicazione principale
 │   ├── PoggioFace.html          # Interfaccia principale
+│   ├── RemoteCapture.html       # Interfaccia cattura remota
 │   └── WebCamDemo.html          # Demo webcam
 │
 ├── tmp/                         # Directory temporanea
@@ -86,6 +95,9 @@ Il sistema utilizza un file .env per la configurazione:
 HOST=http://localhost                    # Host CompreFace
 PORT=8000                               # Porta CompreFace
 API_KEY=your_api_key_here               # Chiave API CompreFace
+
+# Indirizzo PoggioFace per scattare foto
+POGGIO_FACE_URL=http://localhost
 
 # Soglie di riconoscimento
 DETECTION_PROBABILITY_THRESHOLD=0.8      # Soglia rilevamento volti
@@ -116,7 +128,9 @@ Il file principale che gestisce l'interfaccia di riconoscimento facciale.
 - `GET /`: Pagina principale con interfaccia di riconoscimento
 - `POST /log`: Endpoint per logging dal frontend
 - `GET /config`: Configurazione per il frontend
-- `POST /pace`: Endpoint per integrazione hardware
+- `GET /capture_remote_photo`: Interfaccia per cattura foto remota
+- `POST /remote_photo_data`: Riceve e processa foto catturate remotamente
+- `GET /favicon.ico`: Gestione favicon
 
 **Funzionalità:**
 - Caricamento configurazione da .env
@@ -124,7 +138,7 @@ Il file principale che gestisce l'interfaccia di riconoscimento facciale.
 - Gestione logging centralizzato
 - Integrazione con sistemi esterni
 
-### 2. Dashboard Amministrativa (Dashboard/dashboard.py)
+### 2. Dashboard Amministrativa (Dashboard/DSashboard.py)
 
 Backend per la gestione amministrativa dei soggetti.
 
@@ -138,29 +152,29 @@ Backend per la gestione amministrativa dei soggetti.
 
 ## Dashboard Amministrativa
 
-### Interfaccia (Dashboard/templates/dashboard.html)
+### Interfaccia (Dashboard/templates/Dashboard.html)
 
 La dashboard offre un'interfaccia completa per la gestione dei soggetti:
 
 #### Funzionalità Principali
 
 1. **Gestione Soggetti**
-   - ✅ Visualizzazione lista soggetti con miniature
-   - ✅ Aggiunta nuovi soggetti con nome e foto
-   - ✅ Rinominazione soggetti esistenti
-   - ✅ Eliminazione soggetti e relative immagini
+   - Visualizzazione lista soggetti con miniature
+   - Aggiunta nuovi soggetti con nome e foto
+   - Rinominazione soggetti esistenti
+   - Eliminazione soggetti e relative immagini
 
 2. **Gestione Immagini**
-   - ✅ Visualizzazione tutte le immagini per soggetto
-   - ✅ Aggiunta immagini da file o webcam
-   - ✅ Eliminazione immagini singole
-   - ✅ Anteprima immagini prima del caricamento
+   - Visualizzazione tutte le immagini per soggetto
+   - Aggiunta immagini da file o webcam
+   - Eliminazione immagini singole
+   - Anteprima immagini prima del caricamento
 
 3. **Cattura da Webcam**
-   - ✅ Modal dedicato per cattura foto
-   - ✅ Anteprima in tempo reale
-   - ✅ Possibilità di rifare la foto
-   - ✅ Integrazione seamless con form
+   - Modal dedicato per cattura foto
+   - Anteprima in tempo reale
+   - Possibilità di rifare la foto
+   - Integrazione seamless con form
 
 #### Componenti UI
 
@@ -182,7 +196,7 @@ La dashboard offre un'interfaccia completa per la gestione dei soggetti:
 </div>
 ```
 
-### JavaScript Dashboard (Dashboard/static/dashboard.js)
+### JavaScript Dashboard (Dashboard/static/Dashboard.js)
 
 Gestisce tutta l'interattività della dashboard:
 
@@ -204,23 +218,8 @@ async function deleteImage()           // Elimina immagine
 
 // Webcam
 function setupWebcamModal()            // Configura modal webcam
-function openWebcamModal()             // Apre modal webcam
 ```
 
-#### Gestione Webcam
-
-Il sistema di cattura webcam è modulare e riutilizzabile:
-
-```javascript
-function openWebcamModal(inputId, previewId, previewContainerId) {
-    currentInputTarget = inputId;
-    currentPreviewTarget = previewId;
-    currentPreviewContainer = previewContainerId;
-    
-    const modal = new bootstrap.Modal(document.getElementById('webcamModal'));
-    modal.show();
-}
-```
 
 ## API e Endpoints
 
@@ -250,15 +249,6 @@ const response = await fetch('/subjects', {
 });
 ```
 
-**Rinominare un soggetto:**
-```javascript
-const response = await fetch('/subjects/Mario Rossi', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_name: 'Mario Verdi' })
-});
-```
-
 ## Interfaccia di Riconoscimento
 
 ### Template Principale (templates/PoggioFace.html)
@@ -272,7 +262,7 @@ Interfaccia minimale per il riconoscimento:
 </div>
 ```
 
-### Script di Riconoscimento (static/script.js)
+### Script di Riconoscimento (static/PoggioFace.js)
 
 #### Flusso di Riconoscimento
 
@@ -419,6 +409,7 @@ API_KEY=your_compreface_api_key
 DETECTION_PROBABILITY_THRESHOLD=0.8
 SIMILARITY_THRESHOLD=0.85
 FACE_PLUGINS=age,gender
+POGGIO_FACE_URL=http://localhost
 ```
 
 ### 4. Avvio Applicazioni
@@ -434,39 +425,6 @@ python PoggioFace.py
 cd Dashboard
 python dashboard.py
 # Accessibile su http://localhost:5000
-```
-
-### 5. Setup Produzione
-
-**Con Docker:**
-```dockerfile
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-EXPOSE 5002
-CMD ["python", "PoggioFace.py"]
-```
-
-**Con nginx (reverse proxy):**
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-    
-    location / {
-        proxy_pass http://localhost:5002;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-    
-    location /dashboard {
-        proxy_pass http://localhost:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
 ```
 
 ## Troubleshooting
@@ -522,27 +480,6 @@ function log(message) {
 }
 ```
 
-### Monitoraggio
-
-**Metriche chiave da monitorare:**
-- Tempo risposta API CompreFace
-- Accuratezza riconoscimento
-- Utilizzo CPU/memoria
-- Errori di rete
-
-### Backup e Sicurezza
-
-**Backup dati:**
-- Export periodico soggetti da CompreFace
-- Backup immagini e configurazioni
-- Versioning codice con Git
-
-**Sicurezza:**
-- Usa HTTPS in produzione
-- Configura firewall
-- Limita accesso API
-- Aggiorna dipendenze regolarmente
-
 ---
 
 ## Conclusioni
@@ -550,5 +487,3 @@ function log(message) {
 PoggioFace è un sistema completo e modulare per il riconoscimento facciale, progettato per essere facilmente estendibile e mantenibile. La separazione tra interfaccia utente, dashboard amministrativa e backend API permette scalabilità e flessibilità d'uso.
 
 Per supporto tecnico o contributi al progetto, fare riferimento al repository GitHub del progetto.
-
-Similar code found with 2 license types

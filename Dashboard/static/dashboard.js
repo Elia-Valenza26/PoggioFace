@@ -1,19 +1,40 @@
-// Variabili globali
-let compreface_base_url;
-let selectedSubject = null;
-let allSubjects = {};
+// Variabili globali per la gestione dell'applicazione
+let compreface_base_url; // URL base per CompreFace (non utilizzato nel codice attuale)
+let selectedSubject = null; // Soggetto attualmente selezionato per la visualizzazione dei dettagli
+let allSubjects = {}; // Cache di tutti i soggetti caricati dal server
+let POGGIO_FACE_URL; // URL del servizio PoggioFace caricato dalla configurazione
 
-// Variabili per webcam
-let webcamStream = null;
-let currentInputTarget = null;
-let currentPreviewTarget = null;
-let currentPreviewContainer = null;
+// Variabili per la gestione della webcam remota
+let webcamStream = null; // Stream della webcam (attualmente non utilizzato)
+let currentInputTarget = null; // ID dell'input file di destinazione per la foto catturata
+let currentPreviewTarget = null; // ID dell'elemento immagine per l'anteprima
+let currentPreviewContainer = null; // ID del container dell'anteprima
 
-const POGGIO_FACE_URL = 'http://localhost:5002';
+/**
+ * Carica la configurazione dal server
+ * Ottiene l'URL del servizio PoggioFace dalla route /config
+ */
+async function loadConfig() {
+    try {
+        const response = await fetch('/config');
+        const config = await response.json();
+        POGGIO_FACE_URL = config.poggio_face_url;
+        console.log('Configurazione caricata:', config);
+    } catch (error) {
+        console.error('Errore durante il caricamento della configurazione:', error);
+        // Fallback al valore di default in caso di errore
+        POGGIO_FACE_URL = 'http://localhost:5002';
+        showToast('Errore durante il caricamento della configurazione, utilizzo valori di default', 'warning');
+    }
+}
 
-// Caricamento iniziale
-document.addEventListener('DOMContentLoaded', function() {
-    // Nascondi l'overlay di caricamento alla fine dell'inizializzazione
+// Inizializzazione dell'applicazione quando il DOM è completamente caricato
+document.addEventListener('DOMContentLoaded', async function() {
+
+    // Carica la configurazione prima di procedere
+    await loadConfig();
+
+    // Carica i soggetti e nasconde l'overlay di caricamento
     fetchSubjects().then(() => {
         document.getElementById('loading-overlay').style.display = 'none';
     }).catch(error => {
@@ -21,11 +42,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('loading-overlay').style.display = 'none';
     });
 
+    // Configura le aree di upload drag-and-drop
+    setupUploadAreas();
+
     // Event listener per l'anteprima dell'immagine nel modal di aggiunta soggetto
     document.getElementById('subject-image').addEventListener('change', function(event) {
         const preview = document.getElementById('image-preview');
         const previewContainer = document.getElementById('image-preview-container');
         
+        // Se è stato selezionato un file, mostra l'anteprima
         if (event.target.files && event.target.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -34,15 +59,17 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             reader.readAsDataURL(event.target.files[0]);
         } else {
+            // Nascondi l'anteprima se non ci sono file
             previewContainer.classList.add('d-none');
         }
     });
 
-    // Event listener per l'anteprima dell'immagine nel modal di aggiunta foto
+    // Event listener per l'anteprima dell'immagine nel modal di aggiunta foto a soggetto esistente
     document.getElementById('new-subject-image').addEventListener('change', function(event) {
         const preview = document.getElementById('new-image-preview');
         const previewContainer = document.getElementById('new-image-preview-container');
         
+        // Stessa logica del precedente ma per il modal di aggiunta foto
         if (event.target.files && event.target.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -55,40 +82,44 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Event listener per l'aggiunta di un soggetto
+    // Event listener per il salvataggio di un nuovo soggetto
     document.getElementById('save-subject-btn').addEventListener('click', addSubject);
 
-    // Event listener per il pulsante di rinomina soggetto
+    // Event listener per la rinomina di un soggetto
     document.getElementById('rename-subject-btn').addEventListener('click', renameSubject);
 
-    // Event listener per l'aggiunta di un'immagine a un soggetto
+    // Event listener per l'aggiunta di un'immagine a un soggetto esistente
     document.getElementById('add-image-btn').addEventListener('click', addImageToSubject);
 
-    // Event listener per il pulsante di conferma eliminazione
+    // Event listener per la conferma dell'eliminazione (soggetto o immagine)
     document.getElementById('confirm-delete-btn').addEventListener('click', confirmDelete);
 
-    // Event listener per cattura foto - nuova implementazione
+    // Event listener per l'apertura della webcam per il modal di nuovo soggetto
     document.getElementById('capture-photo-btn').addEventListener('click', function() {
         openWebcamModal('subject-image', 'image-preview', 'image-preview-container');
     });
 
+    // Event listener per l'apertura della webcam per il modal di aggiunta foto
     document.getElementById('capture-new-photo-btn').addEventListener('click', function() {
         openWebcamModal('new-subject-image', 'new-image-preview', 'new-image-preview-container');
     });
 
-    // Event listener per il modal webcam
+    // Configura il modal della webcam
     setupWebcamModal();
 });
 
-// Funzione per configurare il modal webcam
+/**
+ * Configura il comportamento del modal webcam
+ * Gestisce l'apertura e chiusura del modal, inserendo un iframe per la cattura remota
+ */
 function setupWebcamModal() {
     const webcamModal = document.getElementById('webcamModal');
     const modalBody = webcamModal.querySelector('.modal-body');
     
-    // Quando il modal si apre
+    // Quando il modal si apre, sostituisce il contenuto con un iframe
     webcamModal.addEventListener('shown.bs.modal', async function() {
         try {
-            // Sostituisci il contenuto del modal con un iframe
+            // Inserisce un iframe che punta al servizio di cattura remota
             modalBody.innerHTML = `
                 <div class="text-center">
                     <p class="mb-3">Connessione alla webcam remota in corso...</p>
@@ -100,7 +131,7 @@ function setupWebcamModal() {
                 </div>
             `;
             
-            // Ascolta i messaggi dall'iframe
+            // Ascolta i messaggi dall'iframe per ricevere la foto catturata
             window.addEventListener('message', handleRemotePhoto);
             
         } catch (error) {
@@ -109,9 +140,9 @@ function setupWebcamModal() {
         }
     });
 
-    // Quando il modal si chiude
+    // Quando il modal si chiude, ripristina il contenuto originale
     webcamModal.addEventListener('hidden.bs.modal', function() {
-        // Pulisci l'iframe
+        // Ripristina il contenuto HTML originale del modal
         modalBody.innerHTML = `
             <div id="webcam-container">
                 <video id="webcam-video" autoplay muted style="max-width: 100%; border-radius: 8px;"></video>
@@ -130,42 +161,146 @@ function setupWebcamModal() {
             </div>
         `;
         
-        // Rimuovi listener
+        // Rimuove il listener per i messaggi
         window.removeEventListener('message', handleRemotePhoto);
     });
 }
 
-// Gestisce la foto ricevuta dalla cattura remota
+/**
+ * Configura le aree di upload drag-and-drop per entrambi i modal
+ */
+function setupUploadAreas() {
+    // Configura l'area di upload per il modal di nuovo soggetto
+    setupUploadArea('upload-area-subject', 'subject-image', 'upload-preview-subject', 'image-preview');
+    // Configura l'area di upload per il modal di aggiunta foto
+    setupUploadArea('upload-area-new', 'new-subject-image', 'upload-preview-new', 'new-image-preview');
+}
+
+/**
+ * Configura una singola area di upload con funzionalità drag-and-drop
+ * @param {string} areaId - ID dell'area di drop
+ * @param {string} inputId - ID dell'input file
+ * @param {string} previewId - ID del container dell'anteprima
+ * @param {string} imgId - ID dell'elemento immagine per l'anteprima
+ */
+function setupUploadArea(areaId, inputId, previewId, imgId) {
+    const uploadArea = document.getElementById(areaId);
+    const fileInput = document.getElementById(inputId);
+    const previewArea = document.getElementById(previewId);
+    const previewImg = document.getElementById(imgId);
+    
+    // Verifica che tutti gli elementi esistano
+    if (!uploadArea || !fileInput) return;
+    
+    // Gestisce l'evento dragover (quando un file viene trascinato sopra l'area)
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover'); // Aggiunge stile visivo
+    });
+    
+    // Gestisce l'evento dragleave (quando il file esce dall'area)
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover'); // Rimuove stile visivo
+    });
+    
+    // Gestisce l'evento drop (quando un file viene rilasciato)
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        // Verifica che sia stata rilasciata un'immagine
+        if (files.length > 0 && files[0].type.startsWith('image/')) {
+            fileInput.files = files; // Assegna il file all'input
+            handleFileSelect(fileInput, uploadArea, previewArea, previewImg);
+        }
+    });
+    
+    // Gestisce la selezione tradizionale di file tramite input
+    fileInput.addEventListener('change', () => {
+        handleFileSelect(fileInput, uploadArea, previewArea, previewImg);
+    });
+}
+
+/**
+ * Gestisce la selezione di un file e mostra l'anteprima
+ * @param {HTMLInputElement} input - Input file
+ * @param {HTMLElement} uploadArea - Area di upload
+ * @param {HTMLElement} previewArea - Container dell'anteprima
+ * @param {HTMLImageElement} previewImg - Elemento immagine per l'anteprima
+ */
+function handleFileSelect(input, uploadArea, previewArea, previewImg) {
+    const file = input.files[0];
+    
+    if (file) {
+        // Legge il file e mostra l'anteprima
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            previewImg.src = e.target.result;
+            // Nasconde il contenuto di upload e mostra l'anteprima
+            uploadArea.querySelector('.upload-content').classList.add('d-none');
+            previewArea.classList.remove('d-none');
+            uploadArea.classList.add('has-file');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+/**
+ * Pulisce l'anteprima di un'area di upload
+ * @param {string} type - Tipo di upload ('subject' o 'new')
+ */
+function clearPreview(type) {
+    const uploadArea = document.getElementById(`upload-area-${type}`);
+    const previewArea = document.getElementById(`upload-preview-${type}`);
+    const fileInput = document.getElementById(type === 'subject' ? 'subject-image' : 'new-subject-image');
+    
+    // Reset dello stato visivo e dell'input
+    fileInput.value = '';
+    uploadArea.querySelector('.upload-content').classList.remove('d-none');
+    previewArea.classList.add('d-none');
+    uploadArea.classList.remove('has-file');
+    
+    // Trigger dell'evento change per aggiornare altri listener
+    const changeEvent = new Event('change', { bubbles: true });
+    fileInput.dispatchEvent(changeEvent);
+}
+
+/**
+ * Gestisce la ricezione di una foto dalla cattura remota
+ * Viene chiamata quando l'iframe invia un messaggio con la foto catturata
+ * @param {MessageEvent} event - Evento messaggio dall'iframe
+ */
 function handleRemotePhoto(event) {
-    // Verifica che il messaggio venga dall'iframe corretto
+    // Verifica che il messaggio sia del tipo corretto
     if (event.data && event.data.type === 'photo_captured') {
         const photoData = event.data.data;
         
-        // Converte base64 in File object
+        // Converte i dati base64 in un oggetto File
         fetch(photoData)
             .then(res => res.blob())
             .then(blob => {
                 const timestamp = new Date().getTime();
                 const file = new File([blob], `remote_capture_${timestamp}.jpg`, { type: 'image/jpeg' });
                 
-                // Aggiorna l'input file
+                // Aggiorna l'input file di destinazione
                 const input = document.getElementById(currentInputTarget);
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
                 input.files = dataTransfer.files;
                 
-                // Mostra anteprima
+                // Mostra l'anteprima della foto catturata
                 const preview = document.getElementById(currentPreviewTarget);
                 const previewContainer = document.getElementById(currentPreviewContainer);
                 
                 preview.src = photoData;
                 previewContainer.classList.remove('d-none');
                 
-                // Trigger change event
+                // Trigger dell'evento change per aggiornare altri listener
                 const changeEvent = new Event('change', { bubbles: true });
                 input.dispatchEvent(changeEvent);
                 
-                // Chiudi modal
+                // Chiude il modal webcam
                 const modal = bootstrap.Modal.getInstance(document.getElementById('webcamModal'));
                 modal.hide();
                 
@@ -178,41 +313,53 @@ function handleRemotePhoto(event) {
     }
 }
 
-// Funzione per aprire il modal webcam
+/**
+ * Apre il modal della webcam e imposta i target per la foto catturata
+ * @param {string} inputId - ID dell'input file di destinazione
+ * @param {string} previewId - ID dell'elemento immagine per l'anteprima
+ * @param {string} previewContainerId - ID del container dell'anteprima
+ */
 function openWebcamModal(inputId, previewId, previewContainerId) {
+    // Memorizza i target per l'utilizzo in handleRemotePhoto
     currentInputTarget = inputId;
     currentPreviewTarget = previewId;
     currentPreviewContainer = previewContainerId;
     
+    // Apre il modal
     const modal = new bootstrap.Modal(document.getElementById('webcamModal'));
     modal.show();
 }
 
-// Resto delle funzioni esistenti...
+/**
+ * Recupera tutti i soggetti dal server
+ * Gestisce anche i retry in caso di errori di rete
+ */
 async function fetchSubjects() {
     try {
         const response = await fetch('/subjects');
         
         if (!response.ok) {
+            // Gestione speciale per errori di connessione
             if (response.status === 0) {
                 console.warn('Problema di connessione alla rete. Attesa e nuovo tentativo...');
                 await new Promise(resolve => setTimeout(resolve, 2000));
-                return fetchSubjects();
+                return fetchSubjects(); // Retry ricorsivo
             }
             throw new Error(`Errore del server HTTP: ${response.status}`);
         }
         
         const data = await response.json();
-        allSubjects = data;
-        renderSubjectsList(data);
+        allSubjects = data; // Aggiorna la cache globale
+        renderSubjectsList(data); // Renderizza la lista
         return data;
     } catch (error) {
         console.error('Errore durante il recupero dei soggetti:', error);
         
+        // Retry automatico per errori di rete
         if (error.name === 'TypeError' && error.message.includes('NetworkError')) {
             console.warn('Errore di rete. Riprovando tra 2 secondi...');
             await new Promise(resolve => setTimeout(resolve, 2000));
-            return fetchSubjects();
+            return fetchSubjects(); // Retry ricorsivo
         }
         
         showToast('Errore durante il recupero dei soggetti: ' + error.message, 'danger');
@@ -220,10 +367,15 @@ async function fetchSubjects() {
     }
 }
 
+/**
+ * Renderizza la lista dei soggetti nell'interfaccia utente
+ * @param {Object} subjects - Oggetto contenente i soggetti e le loro immagini
+ */
 function renderSubjectsList(subjects) {
     const subjectsList = document.getElementById('subjects-list');
     subjectsList.innerHTML = '';
 
+    // Gestisce il caso di nessun soggetto presente
     if (Object.keys(subjects).length === 0) {
         subjectsList.innerHTML = `
             <div class="col-12">
@@ -236,15 +388,19 @@ function renderSubjectsList(subjects) {
         return;
     }
 
+    // Ordina i soggetti alfabeticamente
     const sortedSubjects = Object.keys(subjects).sort();
 
+    // Crea una card per ogni soggetto
     for (const subject of sortedSubjects) {
         const images = subjects[subject] || [];
+        // Usa la prima immagine come thumbnail, o un placeholder se non ci sono immagini
         const firstImageUrl = images.length > 0 ? `/proxy/images/${images[0]}` : 'https://via.placeholder.com/48';
 
         const card = document.createElement('div');
         card.className = 'col-12';
 
+        // Template HTML per la card del soggetto
         card.innerHTML = `
             <div class="subject-card bg-white p-3 rounded shadow-sm d-flex justify-content-between align-items-center flex-wrap">
                 <div class="d-flex align-items-center gap-3">
@@ -265,7 +421,7 @@ function renderSubjectsList(subjects) {
             </div>
         `;
 
-        // Event listeners per i pulsanti (rimuovo quello per add-image-btn)
+        // Aggiunge event listener per i pulsanti della card
         card.querySelector('.view-btn').addEventListener('click', function() {
             showSubjectDetails(this.getAttribute('data-subject'));
         });
@@ -282,11 +438,16 @@ function renderSubjectsList(subjects) {
     }
 }
 
+/**
+ * Mostra i dettagli di un soggetto specifico
+ * @param {string} subject - Nome del soggetto da visualizzare
+ */
 function showSubjectDetails(subject) {
-    selectedSubject = subject;
+    selectedSubject = subject; // Memorizza il soggetto selezionato
     const subjectImages = allSubjects[subject] || [];
     
     const detailsContainer = document.getElementById('subject-details');
+    // Genera il template HTML per i dettagli del soggetto
     detailsContainer.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">${subject}</h4>
@@ -322,7 +483,7 @@ function showSubjectDetails(subject) {
         `}
     `;
 
-    // Event listeners
+    // Aggiunge event listener per i pulsanti dei dettagli
     document.getElementById('add-photo-btn').addEventListener('click', function () {
         openAddImageModal(subject);
     });
@@ -331,7 +492,7 @@ function showSubjectDetails(subject) {
         openDeleteSubjectModal(subject);
     });
 
-    // Event listeners per i pulsanti di eliminazione immagine
+    // Aggiunge event listener per i pulsanti di eliminazione di ogni immagine
     document.querySelectorAll('.image-delete').forEach(button => {
         button.addEventListener('click', function () {
             const imageId = this.getAttribute('data-image-id');
@@ -340,9 +501,15 @@ function showSubjectDetails(subject) {
     });
 }
 
+/**
+ * Apre il modal per aggiungere un'immagine a un soggetto esistente
+ * @param {string} subject - Nome del soggetto
+ */
 function openAddImageModal(subject) {
+    // Precompila il form con il nome del soggetto
     document.getElementById('image-subject-name').value = subject;
     document.getElementById('add-image-subject-name').textContent = subject;
+    // Reset dell'anteprima e dell'input
     document.getElementById('new-image-preview-container').classList.add('d-none');
     document.getElementById('new-subject-image').value = '';
     
@@ -350,7 +517,12 @@ function openAddImageModal(subject) {
     modal.show();
 }
 
+/**
+ * Apre il modal per rinominare un soggetto
+ * @param {string} subject - Nome attuale del soggetto
+ */
 function openRenameModal(subject) {
+    // Precompila il form con il nome attuale
     document.getElementById('old-subject-name').value = subject;
     document.getElementById('new-subject-name').value = subject;
     
@@ -358,10 +530,15 @@ function openRenameModal(subject) {
     modal.show();
 }
 
+/**
+ * Apre il modal di conferma per l'eliminazione di un soggetto
+ * @param {string} subject - Nome del soggetto da eliminare
+ */
 function openDeleteSubjectModal(subject) {
     const message = `Sei sicuro di voler eliminare il soggetto "${subject}" e tutte le sue immagini associate? Questa azione non può essere annullata.`;
     document.getElementById('confirm-delete-message').textContent = message;
     
+    // Configura il pulsante di conferma per l'eliminazione del soggetto
     document.getElementById('confirm-delete-btn').setAttribute('data-action', 'delete-subject');
     document.getElementById('confirm-delete-btn').setAttribute('data-subject', subject);
     
@@ -369,10 +546,16 @@ function openDeleteSubjectModal(subject) {
     modal.show();
 }
 
+/**
+ * Apre il modal di conferma per l'eliminazione di un'immagine
+ * @param {string} imageId - ID dell'immagine da eliminare
+ * @param {string} subject - Nome del soggetto proprietario dell'immagine
+ */
 function openDeleteImageModal(imageId, subject) {
     const message = `Sei sicuro di voler eliminare questa immagine del soggetto "${subject}"? Questa azione non può essere annullata.`;
     document.getElementById('confirm-delete-message').textContent = message;
     
+    // Configura il pulsante di conferma per l'eliminazione dell'immagine
     document.getElementById('confirm-delete-btn').setAttribute('data-action', 'delete-image');
     document.getElementById('confirm-delete-btn').setAttribute('data-image-id', imageId);
     
@@ -380,27 +563,35 @@ function openDeleteImageModal(imageId, subject) {
     modal.show();
 }
 
+/**
+ * Aggiunge un nuovo soggetto con la sua prima immagine
+ */
 async function addSubject() {
     const subjectName = document.getElementById('subject-name').value.trim();
     const subjectImage = document.getElementById('subject-image').files[0];
     
+    // Validazione input
     if (!subjectName || !subjectImage) {
         showToast('Per favore, inserisci un nome e seleziona un\'immagine.', 'warning');
         return;
     }
     
+    // Verifica che il soggetto non esista già
     if (allSubjects[subjectName]) {
         showToast(`Il soggetto "${subjectName}" esiste già. Scegli un altro nome.`, 'warning');
         return;
     }
     
+    // Mostra loading overlay
     document.getElementById('loading-overlay').style.display = 'flex';
     
     try {
+        // Prepara i dati per l'upload
         const formData = new FormData();
         formData.append('subject', subjectName);
         formData.append('image', subjectImage);
         
+        // Invia la richiesta al server
         const response = await fetch('/subjects', {
             method: 'POST',
             body: formData
@@ -412,8 +603,10 @@ async function addSubject() {
             throw new Error(result.error || 'Errore durante l\'aggiunta del soggetto');
         }
         
+        // Aggiorna la lista dei soggetti
         await fetchSubjects();
         
+        // Chiude il modal e reset del form
         const modal = bootstrap.Modal.getInstance(document.getElementById('addSubjectModal'));
         modal.hide();
         
@@ -422,38 +615,48 @@ async function addSubject() {
         document.getElementById('image-preview-container').classList.add('d-none');
         
         showToast(`Soggetto "${subjectName}" aggiunto con successo.`, 'success');
+        // Mostra automaticamente i dettagli del nuovo soggetto
         showSubjectDetails(subjectName);
     } catch (error) {
         console.error('Errore durante l\'aggiunta del soggetto:', error);
         showToast('Errore durante l\'aggiunta del soggetto: ' + error.message, 'danger');
     } finally {
+        // Nascondi loading overlay in ogni caso
         document.getElementById('loading-overlay').style.display = 'none';
     }
 }
 
+/**
+ * Rinomina un soggetto esistente
+ */
 async function renameSubject() {
     const oldName = document.getElementById('old-subject-name').value;
     const newName = document.getElementById('new-subject-name').value.trim();
     
+    // Validazione input
     if (!newName) {
         showToast('Per favore, inserisci un nuovo nome.', 'warning');
         return;
     }
     
+    // Se il nome non è cambiato, chiudi semplicemente il modal
     if (oldName === newName) {
         const modal = bootstrap.Modal.getInstance(document.getElementById('renameSubjectModal'));
         modal.hide();
         return;
     }
     
+    // Verifica che il nuovo nome non sia già in uso
     if (allSubjects[newName]) {
         showToast(`Il soggetto "${newName}" esiste già. Scegli un altro nome.`, 'warning');
         return;
     }
     
+    // Mostra loading overlay
     document.getElementById('loading-overlay').style.display = 'flex';
     
     try {
+        // Invia la richiesta di rinomina al server
         const response = await fetch(`/subjects/${oldName}`, {
             method: 'PUT',
             headers: {
@@ -468,14 +671,16 @@ async function renameSubject() {
             throw new Error(result.error || 'Errore durante la rinominazione del soggetto');
         }
         
+        // Chiude il modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('renameSubjectModal'));
         modal.hide();
         
         showToast(`Soggetto rinominato da "${oldName}" a "${newName}" con successo.`, 'success');
         
+        // Aggiorna l'interfaccia dopo un breve delay
         setTimeout(async () => {
             await fetchSubjects();
-            selectedSubject = newName;
+            selectedSubject = newName; // Aggiorna il soggetto selezionato
             showSubjectDetails(newName);
             document.getElementById('loading-overlay').style.display = 'none';
         }, 1000);
@@ -486,21 +691,28 @@ async function renameSubject() {
     }
 }
 
+/**
+ * Aggiunge un'immagine a un soggetto esistente
+ */
 async function addImageToSubject() {
     const subject = document.getElementById('image-subject-name').value;
     const image = document.getElementById('new-subject-image').files[0];
     
+    // Validazione input
     if (!image) {
         showToast('Per favore, seleziona un\'immagine.', 'warning');
         return;
     }
     
+    // Mostra loading overlay
     document.getElementById('loading-overlay').style.display = 'flex';
     
     try {
+        // Prepara i dati per l'upload
         const formData = new FormData();
         formData.append('image', image);
         
+        // Invia la richiesta al server
         const response = await fetch(`/subjects/${subject}/images`, {
             method: 'POST',
             body: formData
@@ -512,6 +724,7 @@ async function addImageToSubject() {
             throw new Error(result.error || 'Errore durante l\'aggiunta dell\'immagine');
         }
         
+        // Chiude il modal e reset del form
         const modal = bootstrap.Modal.getInstance(document.getElementById('addImageModal'));
         modal.hide();
         
@@ -520,6 +733,7 @@ async function addImageToSubject() {
         
         showToast(`Immagine aggiunta al soggetto "${subject}" con successo.`, 'success');
         
+        // Aggiorna l'interfaccia dopo un breve delay
         setTimeout(async () => {
             await fetchSubjects();
             showSubjectDetails(subject);
@@ -532,15 +746,22 @@ async function addImageToSubject() {
     }
 }
 
+/**
+ * Gestisce la conferma dell'eliminazione (soggetto o immagine)
+ * Determina l'azione da eseguire basandosi sugli attributi del pulsante
+ */
 async function confirmDelete() {
     const action = document.getElementById('confirm-delete-btn').getAttribute('data-action');
     
+    // Chiude il modal di conferma
     const modal = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
     modal.hide();
     
+    // Mostra loading overlay
     document.getElementById('loading-overlay').style.display = 'flex';
     
     try {
+        // Esegue l'azione appropriata
         if (action === 'delete-subject') {
             await deleteSubject();
         } else if (action === 'delete-image') {
@@ -550,29 +771,37 @@ async function confirmDelete() {
         console.error('Errore durante l\'eliminazione:', error);
         showToast('Errore durante l\'eliminazione: ' + error.message, 'danger');
     } finally {
+        // Nascondi loading overlay in ogni caso
         document.getElementById('loading-overlay').style.display = 'none';
     }
 }
 
+/**
+ * Elimina un soggetto e tutte le sue immagini associate
+ */
 async function deleteSubject() {
     const subject = document.getElementById('confirm-delete-btn').getAttribute('data-subject');
     
     try {
+        // Copia l'array delle immagini per evitare modifiche durante l'iterazione
         const subjectImages = [...(allSubjects[subject] || [])];
         
         showToast(`Eliminazione del soggetto "${subject}" in corso...`, 'info');
         
+        // Elimina tutte le immagini associate al soggetto
         for (const imageId of subjectImages) {
             try {
                 await fetch(`/images/${imageId}`, {
                     method: 'DELETE'
                 });
+                // Breve pausa tra le eliminazioni per evitare sovraccarico del server
                 await new Promise(resolve => setTimeout(resolve, 200));
             } catch (error) {
                 console.warn(`Errore durante l'eliminazione dell'immagine ${imageId}: ${error.message}`);
             }
         }
         
+        // Elimina il soggetto dal sistema di riconoscimento
         const response = await fetch(`/subjects/${subject}`, {
             method: 'DELETE'
         });
@@ -582,20 +811,25 @@ async function deleteSubject() {
             throw new Error(result.error || 'Errore durante l\'eliminazione del soggetto');
         }
         
+        // Pausa per permettere al server di completare l'operazione
         await new Promise(resolve => setTimeout(resolve, 1000));
         await fetchSubjects();
         
         showToast(`Soggetto "${subject}" eliminato con successo.`, 'success');
-        resetDetailsPanel();
+        resetDetailsPanel(); // Reset del pannello dei dettagli
     } catch (error) {
         throw error;
     }
 }
 
+/**
+ * Elimina una singola immagine
+ */
 async function deleteImage() {
     const imageId = document.getElementById('confirm-delete-btn').getAttribute('data-image-id');
     
     try {
+        // Trova il soggetto proprietario dell'immagine
         let imageSubject = null;
         for (const [subject, images] of Object.entries(allSubjects)) {
             if (images.includes(imageId)) {
@@ -606,6 +840,7 @@ async function deleteImage() {
         
         showToast(`Eliminazione dell'immagine in corso...`, 'info');
         
+        // Elimina l'immagine dal server
         const response = await fetch(`/images/${imageId}`, {
             method: 'DELETE'
         });
@@ -615,15 +850,19 @@ async function deleteImage() {
             throw new Error(result.error || 'Errore durante l\'eliminazione dell\'immagine');
         }
         
+        // Pausa per permettere al server di completare l'operazione
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         showToast('Immagine eliminata con successo.', 'success');
         
+        // Aggiorna l'interfaccia
         const updatedSubjects = await fetchSubjects();
         
+        // Se il soggetto esiste ancora, mostra i suoi dettagli aggiornati
         if (imageSubject && selectedSubject === imageSubject && updatedSubjects[imageSubject]) {
             showSubjectDetails(imageSubject);
         } else {
+            // Altrimenti reset del pannello dei dettagli
             resetDetailsPanel();
         }
     } catch (error) {
@@ -631,6 +870,9 @@ async function deleteImage() {
     }
 }
 
+/**
+ * Reset del pannello dei dettagli quando nessun soggetto è selezionato
+ */
 function resetDetailsPanel() {
     selectedSubject = null;
     const detailsContainer = document.getElementById('subject-details');
@@ -642,15 +884,22 @@ function resetDetailsPanel() {
     `;
 }
 
+/**
+ * Mostra un toast notification all'utente
+ * @param {string} message - Messaggio da visualizzare
+ * @param {string} type - Tipo di toast ('info', 'success', 'warning', 'danger')
+ */
 function showToast(message, type = 'info') {
     const toastContainer = document.querySelector('.toast-container');
     const toastId = 'toast-' + Date.now();
     
+    // Limita il numero di toast dello stesso tipo visualizzati contemporaneamente
     const existingToasts = toastContainer.querySelectorAll(`.bg-${type}`);
     if (existingToasts.length > 2) {
         existingToasts[0].remove();
     }
     
+    // Crea l'elemento toast
     const toast = document.createElement('div');
     toast.className = `toast align-items-center text-white bg-${type} border-0`;
     toast.setAttribute('role', 'alert');
@@ -658,6 +907,7 @@ function showToast(message, type = 'info') {
     toast.setAttribute('aria-atomic', 'true');
     toast.setAttribute('id', toastId);
     
+    // Template HTML del toast
     toast.innerHTML = `
         <div class="d-flex">
             <div class="toast-body">
@@ -667,15 +917,18 @@ function showToast(message, type = 'info') {
         </div>
     `;
     
+    // Aggiunge il toast al container
     toastContainer.appendChild(toast);
     
+    // Inizializza e mostra il toast con Bootstrap
     const bsToast = new bootstrap.Toast(toast, {
         autohide: true,
-        delay: 5000
+        delay: 5000 // Nasconde automaticamente dopo 5 secondi
     });
     
     bsToast.show();
     
+    // Rimuove l'elemento dal DOM quando il toast viene nascosto
     toast.addEventListener('hidden.bs.toast', function() {
         toast.remove();
     });
