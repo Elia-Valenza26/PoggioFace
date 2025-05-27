@@ -1,6 +1,6 @@
 # PoggioFace - Sistema di Riconoscimento Facciale
 
-Un sistema completo di ***riconoscimento facciale*** sviluppato in Python con Flask per il controllo degli accessi biometrici, implementato presso il **Collegio di Merito IPE Poggiolevante**.
+Un sistema completo di ***riconoscimento facciale*** sviluppato in Python con Flask per il controllo degli accessi ad una struttura, implementato presso il **Collegio di Merito IPE Poggiolevante**.
 
 
 ## 🎯 Panoramica
