@@ -125,7 +125,7 @@ def proxy_image(image_id):
 @app.route('/')
 def index():
     compreface_base_url = f"{DOMAIN}:{PORT}"
-    return render_template('Dashboard.html', compreface_base_url=compreface_base_url)
+    return render_template('dashboard.html', compreface_base_url=compreface_base_url)
 
 # Endpoint per ottenere la lista di tutti i soggetti con le loro immagini associate
 @app.route('/subjects', methods=['GET'])
