@@ -1,18 +1,26 @@
 import cv2
 import base64
+import threading
 from threading import Thread
 import queue
+import time
 
-frame_queue = queue.Queue(maxsize=2)
+# Variabile globale per lo streamer condiviso
+shared_video_stream = None
 
-class VideoStreamer:
+class SharedVideoStreamer:
     def __init__(self):
         self.cap = None
         self.running = False
+        self.subscribers = set()
+        self.current_frame = None
+        self.frame_lock = threading.Lock()
     
     def start_stream(self):
         if not self.running:
             self.cap = cv2.VideoCapture(0)
+            if not self.cap.isOpened():
+                raise Exception("Impossibile aprire la webcam")
             self.running = True
             Thread(target=self._capture_frames, daemon=True).start()
     
@@ -30,20 +38,14 @@ class VideoStreamer:
                 _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 frame_b64 = base64.b64encode(buffer).decode('utf-8')
                 
-                # Mantieni solo l'ultimo frame
-                if not frame_queue.empty():
-                    try:
-                        frame_queue.get_nowait()
-                    except queue.Empty:
-                        pass
-                
-                try:
-                    frame_queue.put(frame_b64, block=False)
-                except queue.Full:
-                    pass
+                with self.frame_lock:
+                    self.current_frame = frame_b64
+            
+            time.sleep(0.1)  # 10 FPS
     
     def get_frame(self):
-        try:
-            return frame_queue.get_nowait()
-        except queue.Empty:
-            return None
+        with self.frame_lock:
+            return self.current_frame
+    
+    def is_running(self):
+        return self.running

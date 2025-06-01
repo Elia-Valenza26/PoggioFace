@@ -5,8 +5,9 @@ import os
 import logging
 import datetime
 import requests
+import threading
+from SharedVideoStreamer import SharedVideoStreamer
 
-from VideoStreamer import VideoStreamer
 
 
 # Carica le variabili di ambiente dal file .env
@@ -32,7 +33,7 @@ shelly_url = os.getenv('SHELLY_URL')
 CORS(app)
 
 # Aggiungi dopo le altre variabili globali
-video_stream = VideoStreamer()
+shared_video_stream = SharedVideoStreamer()
 
 # Variabile globale per tracciare lo stato del riconoscimento facciale
 recognition_active = True
@@ -111,38 +112,45 @@ def shelly_url_handler():
             app.logger.error(f"Errore generico nella chiamata Shelly: {str(e)}")
             return jsonify({"error": f"Errore: {str(e)}"}), 500
 
-# Endpoint che serve una pagina dedicata alla cattura di foto per uso remoto.
-@app.route('/capture_remote_photo', methods=['GET'])
-def capture_remote_photo():
-    return render_template('RemoteCapture.html')
-
-# Endpoint che riceve una foto catturata dal frontend e la restituisce in formato base64.
-@app.route('/remote_photo_data', methods=['POST'])
-def remote_photo_data():
-    try:
-        data = request.get_json()
-        photo_data = data.get('photo_data')
-        
-        # Verifica che i dati della foto siano presenti
-        if not photo_data:
-            return jsonify({"error": "Nessun dato foto ricevuto"}), 400
-        
-        # Restituisce la foto in formato base64 con timestamp
-        return jsonify({
-            "success": True,
-            "photo_data": photo_data,  # La foto è già in formato base64 dal frontend
-            "timestamp": datetime.datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        # Log dell'errore e risposta di errore al client
-        app.logger.error(f"Errore durante la cattura remota: {str(e)}")
-        return jsonify({"error": f"Errore: {str(e)}"}), 500
-
 @app.route('/start_video_stream', methods=['POST'])
 def start_video_stream():
     try:
-        video_stream.start_stream()
+        if not shared_video_stream.is_running():
+            shared_video_stream.start_stream()
+        return jsonify({"status": "success", "message": "Stream avviato"})
+    except Exception as e:
+        app.logger.error(f"Errore avvio stream: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
+
+@app.route('/get_video_frame')
+def get_video_frame():
+    try:
+        if not shared_video_stream.is_running():
+            return jsonify({"error": "Stream non attivo"}), 400
+            
+        frame = shared_video_stream.get_frame()
+        if frame:
+            return jsonify({"frame": frame})
+        else:
+            return jsonify({"frame": None})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+webcam_lock = threading.Lock()
+webcam_in_use = False
+
+@app.route('/start_video_stream', methods=['POST'])
+def start_video_stream():
+    global webcam_in_use
+    
+    try:
+        with webcam_lock:
+            if webcam_in_use:
+                return jsonify({"error": "Webcam già in uso dal sistema di riconoscimento"}), 409
+            
+            shared_video_stream.start_stream()
+            webcam_in_use = True
+            
         return jsonify({"status": "success", "message": "Stream avviato"})
     except Exception as e:
         app.logger.error(f"Errore avvio stream: {str(e)}")
@@ -150,39 +158,25 @@ def start_video_stream():
 
 @app.route('/stop_video_stream', methods=['POST'])
 def stop_video_stream():
+    global webcam_in_use
+    
     try:
-        video_stream.stop_stream()
+        with webcam_lock:
+            shared_video_stream.stop_stream()
+            webcam_in_use = False
+            
         return jsonify({"status": "success", "message": "Stream fermato"})
     except Exception as e:
         app.logger.error(f"Errore stop stream: {str(e)}")
         return jsonify({"error": f"Errore: {str(e)}"}), 500
 
-@app.route('/get_video_frame')
-def get_video_frame():
-    try:
-        frame = video_stream.get_frame()
-        if frame:
-            return jsonify({"frame": frame})
-        else:
-            return jsonify({"frame": None})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/capture_video_frame', methods=['POST'])
-def capture_video_frame():
-    try:
-        frame = video_stream.get_frame()
-        if frame:
-            return jsonify({
-                "success": True,
-                "photo_data": f"data:image/jpeg;base64,{frame}",
-                "timestamp": datetime.datetime.now().isoformat()
-            })
-        else:
-            return jsonify({"error": "Nessun frame disponibile"}), 400
-    except Exception as e:
-        app.logger.error(f"Errore cattura frame: {str(e)}")
-        return jsonify({"error": f"Errore: {str(e)}"}), 500
+# Endpoint per controllare lo stato della webcam
+@app.route('/webcam_status')
+def webcam_status():
+    return jsonify({
+        "in_use": webcam_in_use,
+        "available": not webcam_in_use
+    })
 
 # Punto di ingresso dell'applicazione
 if __name__ == '__main__':
