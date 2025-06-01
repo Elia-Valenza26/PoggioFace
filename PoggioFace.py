@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file, Response, make_response
 from flask_cors import CORS 
 from dotenv import load_dotenv
 import os
@@ -109,7 +109,18 @@ def shelly_url_handler():
 # Endpoint che serve una pagina dedicata alla cattura di foto per uso remoto.
 @app.route('/capture_remote_photo', methods=['GET'])
 def capture_remote_photo():
-    return render_template('RemoteCapture.html')
+    response = make_response(render_template('RemoteCapture.html'))
+    # Aggiungi headers per permettere l'accesso alla webcam in iframe
+    response.headers['Permissions-Policy'] = 'camera=*'
+    response.headers['Feature-Policy'] = 'camera *'
+    return response
+
+@app.after_request
+def after_request(response):
+    # Headers per permettere l'accesso alla webcam
+    response.headers['Permissions-Policy'] = 'camera=*, microphone=*'
+    response.headers['Feature-Policy'] = 'camera *; microphone *'
+    return response
 
 
 # Endpoint che riceve una foto catturata dal frontend e la restituisce in formato base64.

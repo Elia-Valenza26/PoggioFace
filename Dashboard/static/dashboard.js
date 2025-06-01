@@ -126,7 +126,8 @@ function setupWebcamModal() {
                     <iframe id="remote-capture-frame" 
                             src="${POGGIO_FACE_URL}/capture_remote_photo" 
                             style="width: 100%; height: 500px; border: none; border-radius: 8px;"
-                            allow="camera">
+                            allow="camera; microphone"
+                            sandbox="allow-same-origin allow-scripts allow-forms">
                     </iframe>
                 </div>
             `;
