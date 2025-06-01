@@ -79,12 +79,10 @@ async function startCamera() {
         canvas.width = 640;
         canvas.height = 480;
         
-        isRunning = true;
+        log("Stream condiviso avviato correttamente.");
         
-        log("Stream condiviso avviato correttamente. Inizio del riconoscimento facciale.");
-        
-        // Inizia il loop di riconoscimento
-        recognitionLoop();
+        // Avvia anche il riconoscimento
+        await startRecognition();
         
         // Inizia il loop di rendering
         requestAnimationFrame(renderFrame);
@@ -93,6 +91,46 @@ async function startCamera() {
         log(`ERRORE: Impossibile accedere allo stream condiviso: ${error.message}`);
         console.error("Errore nell'accesso allo stream condiviso:", error);
         alert("Impossibile accedere allo stream condiviso. Verificare la configurazione del server.");
+    }
+}
+
+async function startRecognition() {
+    try {
+        const response = await fetch('/start_recognition', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            isRunning = true;
+            log("Riconoscimento facciale avviato.");
+            recognitionLoop();
+        } else {
+            throw new Error('Impossibile avviare il riconoscimento');
+        }
+    } catch (error) {
+        log(`ERRORE: Impossibile avviare il riconoscimento: ${error.message}`);
+    }
+}
+
+// Nuova funzione per fermare il riconoscimento
+async function stopRecognition() {
+    try {
+        const response = await fetch('/stop_recognition', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            isRunning = false;
+            if (recognitionTimer) {
+                clearTimeout(recognitionTimer);
+                recognitionTimer = null;
+            }
+            log("Riconoscimento facciale fermato.");
+        } else {
+            throw new Error('Impossibile fermare il riconoscimento');
+        }
+    } catch (error) {
+        log(`ERRORE: Impossibile fermare il riconoscimento: ${error.message}`);
     }
 }
 
@@ -256,11 +294,6 @@ function drawOverlays() {
                 const y_min = box.y_min;
                 const y_max = box.y_max;
 
-                // Disegna il rettangolo del volto
-                ctx.strokeStyle = '#00FF00';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(x_min, y_min, x_max - x_min, y_max - y_min);
-
                 // Resto della logica per soggetti e similarità...
                 if (result.subjects && result.subjects.length > 0) {
                     const subjects = result.subjects.sort((a, b) => b.similarity - a.similarity);
@@ -316,3 +349,11 @@ function drawOverlays() {
         similarityScore = 0;
     }
 }
+
+window.addEventListener('message', async (event) => {
+    if (event.data.type === 'stop_recognition') {
+        await stopRecognition();
+    } else if (event.data.type === 'start_recognition') {
+        await startRecognition();
+    }
+});

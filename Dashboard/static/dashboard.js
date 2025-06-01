@@ -312,6 +312,13 @@ function handleRemotePhoto(event) {
                 showToast('Errore durante la conversione della foto: ' + error.message, 'danger');
             });
     }
+    // Gestione messaggi di stato riconoscimento
+    else if (event.data && event.data.type === 'recognition_stopped') {
+        console.log('Riconoscimento fermato per cattura foto');
+    }
+    else if (event.data && event.data.type === 'recognition_restarted') {
+        console.log('Riconoscimento riavviato dopo cattura foto');
+    }
 }
 
 /**

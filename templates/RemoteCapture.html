@@ -342,35 +342,75 @@
                 return status;
             } catch (error) {
                 console.error('Errore verifica stato webcam:', error);
-                return { in_use: true, available: false };
+                return { stream_running: false, recognition_active: false, available_for_capture: false };
+            }
+        }
+
+        // Ferma il riconoscimento quando inizia la cattura
+        async function stopRecognitionForCapture() {
+            try {
+                const response = await fetch('/stop_recognition', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Comunica al parent window (se in iframe)
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'recognition_stopped'
+                        }, '*');
+                    }
+                }
+            } catch (error) {
+                console.error('Errore stop riconoscimento:', error);
+            }
+        }
+
+        // Riavvia il riconoscimento dopo la cattura
+        async function restartRecognitionAfterCapture() {
+            try {
+                const response = await fetch('/start_recognition', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    // Comunica al parent window (se in iframe)
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'recognition_restarted'
+                        }, '*');
+                    }
+                }
+            } catch (error) {
+                console.error('Errore restart riconoscimento:', error);
             }
         }
 
         // Avvia lo streaming video
-        async function startVideoStream() {
+         async function startVideoStream() {
             try {
                 // Verifica se la webcam è disponibile
                 const webcamStatus = await checkWebcamStatus();
                 
-                if (webcamStatus.in_use) {
-                    showWebcamUnavailable();
-                    return;
+                if (webcamStatus.recognition_active) {
+                    // Ferma il riconoscimento per permettere la cattura
+                    await stopRecognitionForCapture();
+                    // Piccola pausa per permettere al sistema di fermarsi
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
 
                 updateStreamStatus('loading', 'Avvio stream...');
                 
-                // Avvia lo stream sul server
-                const startResponse = await fetch('/start_video_stream', {
-                    method: 'POST'
-                });
-                
-                if (!startResponse.ok) {
-                    const error = await startResponse.json();
-                    if (startResponse.status === 409) {
-                        showWebcamUnavailable();
-                        return;
+                // Avvia lo stream sul server (se non già attivo)
+                if (!webcamStatus.stream_running) {
+                    const startResponse = await fetch('/start_video_stream', {
+                        method: 'POST'
+                    });
+                    
+                    if (!startResponse.ok) {
+                        const error = await startResponse.json();
+                        throw new Error(error.error || 'Impossibile avviare lo stream');
                     }
-                    throw new Error(error.error || 'Impossibile avviare lo stream');
                 }
                 
                 updateStreamStatus('success', 'Stream attivo');
@@ -390,7 +430,6 @@
                         }
                     } catch (error) {
                         console.error('Errore ricezione frame:', error);
-                        // Non mostrare errore per problemi temporanei di rete
                     }
                 }, 100); // 10 FPS
                 
@@ -527,6 +566,12 @@
                             data: capturedPhotoData
                         }, '*');
                     }
+
+                    // Riavvia il riconoscimento dopo 2 secondi
+                    setTimeout(async () => {
+                        await restartRecognitionAfterCapture();
+                    }, 2000);
+                    
                 } else {
                     throw new Error(result.error || 'Errore durante l\'invio');
                 }
@@ -539,6 +584,13 @@
                 previewControls.style.display = 'block';
             }
         }
+
+        // Pulisci risorse quando la pagina viene chiusa (MODIFICATA)
+        window.addEventListener('beforeunload', async () => {
+            stopVideoStream();
+            // Riavvia il riconoscimento se la pagina viene chiusa
+            await restartRecognitionAfterCapture();
+        });
 
         // Mostra errore
         function showError(message) {

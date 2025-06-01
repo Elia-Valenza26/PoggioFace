@@ -36,7 +36,7 @@ CORS(app)
 shared_video_stream = SharedVideoStreamer()
 
 # Variabile globale per tracciare lo stato del riconoscimento facciale
-recognition_active = True
+recognition_active = False
 
 # Route principale che serve il template HTML per il riconoscimento facciale
 @app.route('/')
@@ -111,6 +111,52 @@ def shelly_url_handler():
         except Exception as e:
             app.logger.error(f"Errore generico nella chiamata Shelly: {str(e)}")
             return jsonify({"error": f"Errore: {str(e)}"}), 500
+        
+@app.route('/recognition_status')
+def recognition_status():
+    """Restituisce lo stato del riconoscimento"""
+    return jsonify({
+        "active": recognition_active,
+        "stream_running": shared_video_stream.is_running()
+    })
+
+@app.route('/start_recognition', methods=['POST'])
+def start_recognition():
+    """Avvia il riconoscimento facciale"""
+    global recognition_active
+    try:
+        if not shared_video_stream.is_running():
+            shared_video_stream.start_stream()
+        
+        recognition_active = True
+        app.logger.info("Riconoscimento facciale avviato")
+        return jsonify({"status": "success", "message": "Riconoscimento avviato"})
+    except Exception as e:
+        app.logger.error(f"Errore avvio riconoscimento: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
+
+@app.route('/stop_recognition', methods=['POST'])
+def stop_recognition():
+    """Ferma il riconoscimento facciale (mantiene lo stream attivo)"""
+    global recognition_active
+    try:
+        recognition_active = False
+        app.logger.info("Riconoscimento facciale fermato")
+        return jsonify({"status": "success", "message": "Riconoscimento fermato"})
+    except Exception as e:
+        app.logger.error(f"Errore stop riconoscimento: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
+
+@app.route('/webcam_status')
+def webcam_status():
+    try:
+        return jsonify({
+            "stream_running": shared_video_stream.is_running(),
+            "recognition_active": recognition_active,
+            "available_for_capture": shared_video_stream.is_running() and not recognition_active
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/start_video_stream', methods=['POST'])
 def start_video_stream():
@@ -121,6 +167,7 @@ def start_video_stream():
     except Exception as e:
         app.logger.error(f"Errore avvio stream: {str(e)}")
         return jsonify({"error": f"Errore: {str(e)}"}), 500
+
 
 @app.route('/get_video_frame')
 def get_video_frame():
@@ -145,15 +192,6 @@ def stop_video_stream():
         app.logger.error(f"Errore stop stream: {str(e)}")
         return jsonify({"error": f"Errore: {str(e)}"}), 500
 
-@app.route('/webcam_status')
-def webcam_status():
-    try:
-        return jsonify({
-            "in_use": shared_video_stream.is_running(),
-            "available": not shared_video_stream.is_running()
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/capture_video_frame', methods=['POST'])
 def capture_video_frame():
