@@ -3,13 +3,11 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 import logging
-import time
 import datetime
 import requests
-import cv2
-import base64
-from threading import Thread
-import queue
+
+from VideoStreamer import VideoStreamer
+
 
 # Carica le variabili di ambiente dal file .env
 load_dotenv()
@@ -34,7 +32,7 @@ shelly_url = os.getenv('SHELLY_URL')
 CORS(app)
 
 # Aggiungi dopo le altre variabili globali
-video_stream = None
+video_stream = VideoStreamer()
 
 # Variabile globale per tracciare lo stato del riconoscimento facciale
 recognition_active = True
