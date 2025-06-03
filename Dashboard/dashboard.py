@@ -149,24 +149,36 @@ def add_subject():
     try:
         subject_name = request.form.get('subject')
         image = request.files.get('image')
+        temp_path = request.form.get('temp_path')
 
         # Validazione input
-        if not subject_name or not image:
+        if not subject_name or (not image and not temp_path):
             return jsonify({"error": "Nome soggetto e immagine sono richiesti."}), 400
 
-        # Salvataggio temporaneo dell'immagine per il processing
-        temp_path = f"./tmp/{image.filename}"
-        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-        image.save(temp_path)
+        # Determina il percorso dell'immagine da utilizzare
+        if temp_path and os.path.exists(temp_path):
+            # Usa il file temporaneo dalla cattura remota
+            image_path = temp_path
+            cleanup_temp = True
+        else:
+            # Salvataggio temporaneo dell'immagine uploadata
+            if not image:
+                return jsonify({"error": "Immagine è richiesta."}), 400
+            
+            image_path = f"./tmp/{image.filename}"
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            image.save(image_path)
+            cleanup_temp = True
 
         # Registrazione del soggetto nella collezione CompreFace
         retry(lambda: safe_add_subject(subject_name), retries=3, delay=1)
 
         # Aggiunta dell'immagine al soggetto
-        response = retry(lambda: safe_add_image(temp_path, subject_name), retries=3, delay=1)
+        response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Pulizia file temporaneo
-        os.remove(temp_path)
+        # Pulizia file temporaneo se necessario
+        if cleanup_temp and os.path.exists(image_path):
+            os.remove(image_path)
 
         # Verifica successo operazione
         if 'image_id' not in response:
@@ -175,7 +187,9 @@ def add_subject():
         return jsonify({"message": f"Soggetto '{subject_name}' e immagine aggiunti con successo."}), 200
 
     except Exception as e:
+        app.logger.error(f"Errore durante l'aggiunta del soggetto: {str(e)}")
         return jsonify({"error": f"Errore durante l'aggiunta del soggetto: {str(e)}"}), 500
+
 
 # Endpoint per aggiungere un'immagine aggiuntiva a un soggetto esistente
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
@@ -188,20 +202,33 @@ def add_image_to_subject(subject_name):
             return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
         
         image = request.files.get('image')
+        temp_path = request.form.get('temp_path')
         
-        if not image:
+        # Validazione input
+        if not image and not temp_path:
             return jsonify({"error": "Immagine è richiesta."}), 400
 
-        # Salvataggio temporaneo dell'immagine
-        temp_path = f"./tmp/{image.filename}"
-        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-        image.save(temp_path)
+        # Determina il percorso dell'immagine da utilizzare
+        if temp_path and os.path.exists(temp_path):
+            # Usa il file temporaneo dalla cattura remota
+            image_path = temp_path
+            cleanup_temp = True
+        else:
+            # Salvataggio temporaneo dell'immagine uploadata
+            if not image:
+                return jsonify({"error": "Immagine è richiesta."}), 400
+            
+            image_path = f"./tmp/{image.filename}"
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            image.save(image_path)
+            cleanup_temp = True
 
         # Aggiunta immagine al soggetto esistente
-        response = retry(lambda: safe_add_image(temp_path, subject_name), retries=3, delay=1)
+        response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Pulizia file temporaneo
-        os.remove(temp_path)
+        # Pulizia file temporaneo se necessario
+        if cleanup_temp and os.path.exists(image_path):
+            os.remove(image_path)
 
         # Verifica successo operazione
         if 'image_id' not in response:
@@ -210,7 +237,9 @@ def add_image_to_subject(subject_name):
         return jsonify({"message": f"Immagine aggiunta con successo al soggetto '{subject_name}'."}), 200
 
     except Exception as e:
+        app.logger.error(f"Errore durante l'aggiunta dell'immagine: {str(e)}")
         return jsonify({"error": f"Errore durante l'aggiunta dell'immagine: {str(e)}"}), 500
+
 
 # Endpoint per rinominare un soggetto esistente
 @app.route('/subjects/<string:old_subject_name>', methods=['PUT'])

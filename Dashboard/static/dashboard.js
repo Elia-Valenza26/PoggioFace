@@ -258,6 +258,7 @@ function clearPreview(type) {
     
     // Reset dello stato visivo e dell'input
     fileInput.value = '';
+    fileInput.removeAttribute('data-temp-path'); // Rimuovi il percorso temporaneo
     uploadArea.querySelector('.upload-content').classList.remove('d-none');
     previewArea.classList.add('d-none');
     uploadArea.classList.remove('has-file');
@@ -277,44 +278,64 @@ function handleRemotePhoto(event) {
     if (event.data && event.data.type === 'photo_captured') {
         const photoData = event.data.data;
         
-        // La foto viene ora gestita automaticamente dal backend
-        // Mostra un messaggio di successo
-        showToast('Foto catturata e inviata al sistema!', 'success');
-        
-        // Simula un file per l'anteprima locale
-        fetch(photoData)
-            .then(res => res.blob())
-            .then(blob => {
-                const timestamp = new Date().getTime();
-                const file = new File([blob], `remote_capture_${timestamp}.jpg`, { type: 'image/jpeg' });
-                
-                // Aggiorna l'input file di destinazione
-                const input = document.getElementById(currentInputTarget);
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                input.files = dataTransfer.files;
-                
-                // Mostra l'anteprima della foto catturata
-                const preview = document.getElementById(currentPreviewTarget);
-                const previewContainer = document.getElementById(currentPreviewContainer);
-                
-                preview.src = photoData;
-                previewContainer.classList.remove('d-none');
-                
-                // Trigger dell'evento change per aggiornare altri listener
-                const changeEvent = new Event('change', { bubbles: true });
-                input.dispatchEvent(changeEvent);
-                
-                // Chiude il modal webcam
-                const modal = bootstrap.Modal.getInstance(document.getElementById('webcamModal'));
-                modal.hide();
-                
-                showToast('Foto catturata dalla webcam remota con successo!', 'success');
+        // Invia la foto al backend per essere salvata
+        fetch('/receive_remote_photo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                photo_data: photoData,
+                timestamp: new Date().toISOString()
             })
-            .catch(error => {
-                console.error('Errore conversione foto:', error);
-                showToast('Errore durante la conversione della foto: ' + error.message, 'danger');
-            });
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                // Crea un oggetto File simulato per l'input
+                fetch(photoData)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const file = new File([blob], result.filename, { type: 'image/jpeg' });
+                        
+                        // Memorizza il percorso del file temporaneo
+                        const input = document.getElementById(currentInputTarget);
+                        input.setAttribute('data-temp-path', result.temp_path);
+                        
+                        // Aggiorna l'input file di destinazione
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        input.files = dataTransfer.files;
+                        
+                        // Mostra l'anteprima della foto catturata
+                        const preview = document.getElementById(currentPreviewTarget);
+                        const previewContainer = document.getElementById(currentPreviewContainer);
+                        
+                        preview.src = photoData;
+                        previewContainer.classList.remove('d-none');
+                        
+                        // Trigger dell'evento change per aggiornare altri listener
+                        const changeEvent = new Event('change', { bubbles: true });
+                        input.dispatchEvent(changeEvent);
+                        
+                        // Chiude il modal webcam
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('webcamModal'));
+                        modal.hide();
+                        
+                        showToast('Foto catturata dalla webcam remota con successo!', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Errore conversione foto:', error);
+                        showToast('Errore durante la conversione della foto: ' + error.message, 'danger');
+                    });
+            } else {
+                showToast('Errore durante il salvataggio della foto: ' + result.error, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Errore invio foto al backend:', error);
+            showToast('Errore durante l\'invio della foto: ' + error.message, 'danger');
+        });
     }
     // Gestione messaggi di stato riconoscimento
     else if (event.data && event.data.type === 'recognition_stopped') {
@@ -581,9 +602,10 @@ function openDeleteImageModal(imageId, subject) {
 async function addSubject() {
     const subjectName = document.getElementById('subject-name').value.trim();
     const subjectImage = document.getElementById('subject-image').files[0];
+    const tempPath = document.getElementById('subject-image').getAttribute('data-temp-path');
     
     // Validazione input
-    if (!subjectName || !subjectImage) {
+    if (!subjectName || (!subjectImage && !tempPath)) {
         showToast('Per favore, inserisci un nome e seleziona un\'immagine.', 'warning');
         return;
     }
@@ -601,7 +623,14 @@ async function addSubject() {
         // Prepara i dati per l'upload
         const formData = new FormData();
         formData.append('subject', subjectName);
-        formData.append('image', subjectImage);
+        
+        // Se abbiamo un percorso temporaneo (foto da webcam remota), lo usiamo
+        if (tempPath) {
+            formData.append('temp_path', tempPath);
+        } else {
+            // Altrimenti usiamo il file caricato normalmente
+            formData.append('image', subjectImage);
+        }
         
         // Invia la richiesta al server
         const response = await fetch('/subjects', {
@@ -624,6 +653,7 @@ async function addSubject() {
         
         document.getElementById('subject-name').value = '';
         document.getElementById('subject-image').value = '';
+        document.getElementById('subject-image').removeAttribute('data-temp-path');
         document.getElementById('image-preview-container').classList.add('d-none');
         
         showToast(`Soggetto "${subjectName}" aggiunto con successo.`, 'success');
@@ -709,9 +739,10 @@ async function renameSubject() {
 async function addImageToSubject() {
     const subject = document.getElementById('image-subject-name').value;
     const image = document.getElementById('new-subject-image').files[0];
+    const tempPath = document.getElementById('new-subject-image').getAttribute('data-temp-path');
     
     // Validazione input
-    if (!image) {
+    if (!image && !tempPath) {
         showToast('Per favore, seleziona un\'immagine.', 'warning');
         return;
     }
@@ -722,7 +753,14 @@ async function addImageToSubject() {
     try {
         // Prepara i dati per l'upload
         const formData = new FormData();
-        formData.append('image', image);
+        
+        // Se abbiamo un percorso temporaneo (foto da webcam remota), lo usiamo
+        if (tempPath) {
+            formData.append('temp_path', tempPath);
+        } else {
+            // Altrimenti usiamo il file caricato normalmente
+            formData.append('image', image);
+        }
         
         // Invia la richiesta al server
         const response = await fetch(`/subjects/${subject}/images`, {
@@ -741,6 +779,7 @@ async function addImageToSubject() {
         modal.hide();
         
         document.getElementById('new-subject-image').value = '';
+        document.getElementById('new-subject-image').removeAttribute('data-temp-path');
         document.getElementById('new-image-preview-container').classList.add('d-none');
         
         showToast(`Immagine aggiunta al soggetto "${subject}" con successo.`, 'success');
