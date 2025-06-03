@@ -278,6 +278,8 @@ function handleRemotePhoto(event) {
     if (event.data && event.data.type === 'photo_captured') {
         const photoData = event.data.data;
         
+        console.log('Foto ricevuta, invio al backend...');
+        
         // Invia la foto al backend per essere salvata
         fetch('/receive_remote_photo', {
             method: 'POST',
@@ -289,8 +291,12 @@ function handleRemotePhoto(event) {
                 timestamp: new Date().toISOString()
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Risposta backend:', response.status);
+            return response.json();
+        })
         .then(result => {
+            console.log('Risultato backend:', result);
             if (result.status === 'success') {
                 // Crea un oggetto File simulato per l'input
                 fetch(photoData)
@@ -301,6 +307,8 @@ function handleRemotePhoto(event) {
                         // Memorizza il percorso del file temporaneo
                         const input = document.getElementById(currentInputTarget);
                         input.setAttribute('data-temp-path', result.temp_path);
+                        
+                        console.log('Percorso temporaneo memorizzato:', result.temp_path);
                         
                         // Aggiorna l'input file di destinazione
                         const dataTransfer = new DataTransfer();
@@ -329,6 +337,7 @@ function handleRemotePhoto(event) {
                         showToast('Errore durante la conversione della foto: ' + error.message, 'danger');
                     });
             } else {
+                console.error('Errore backend:', result.error);
                 showToast('Errore durante il salvataggio della foto: ' + result.error, 'danger');
             }
         })
@@ -741,6 +750,8 @@ async function addImageToSubject() {
     const image = document.getElementById('new-subject-image').files[0];
     const tempPath = document.getElementById('new-subject-image').getAttribute('data-temp-path');
     
+    console.log('addImageToSubject:', { subject, image, tempPath });
+    
     // Validazione input
     if (!image && !tempPath) {
         showToast('Per favore, seleziona un\'immagine.', 'warning');
@@ -757,10 +768,14 @@ async function addImageToSubject() {
         // Se abbiamo un percorso temporaneo (foto da webcam remota), lo usiamo
         if (tempPath) {
             formData.append('temp_path', tempPath);
+            console.log('Usando percorso temporaneo:', tempPath);
         } else {
             // Altrimenti usiamo il file caricato normalmente
             formData.append('image', image);
+            console.log('Usando file caricato:', image.name);
         }
+        
+        console.log('Invio richiesta a:', `/subjects/${subject}/images`);
         
         // Invia la richiesta al server
         const response = await fetch(`/subjects/${subject}/images`, {
@@ -768,7 +783,10 @@ async function addImageToSubject() {
             body: formData
         });
         
+        console.log('Risposta server:', response.status);
+        
         const result = await response.json();
+        console.log('Risultato server:', result);
         
         if (!response.ok) {
             throw new Error(result.error || 'Errore durante l\'aggiunta dell\'immagine');
@@ -796,6 +814,7 @@ async function addImageToSubject() {
         document.getElementById('loading-overlay').style.display = 'none';
     }
 }
+
 
 /**
  * Gestisce la conferma dell'eliminazione (soggetto o immagine)

@@ -5,6 +5,8 @@ import os
 import time
 import datetime
 import requests
+import uuid
+import base64
 from compreface import CompreFace
 from compreface.collections import FaceCollection
 from compreface.service import RecognitionService
@@ -195,17 +197,23 @@ def add_subject():
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
 def add_image_to_subject(subject_name):
     try:
+        app.logger.info(f"Aggiunta immagine per soggetto: {subject_name}")
+        
         # Verifica esistenza del soggetto
         all_subjects = retry(lambda: subjects.list(), retries=3, delay=1)
         
         if subject_name not in all_subjects.get('subjects', []):
+            app.logger.error(f"Soggetto '{subject_name}' non trovato")
             return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
         
         image = request.files.get('image')
         temp_path = request.form.get('temp_path')
         
+        app.logger.info(f"Image file: {image}, temp_path: {temp_path}")
+        
         # Validazione input
         if not image and not temp_path:
+            app.logger.error("Nessuna immagine o percorso temporaneo fornito")
             return jsonify({"error": "Immagine è richiesta."}), 400
 
         # Determina il percorso dell'immagine da utilizzare
@@ -213,27 +221,34 @@ def add_image_to_subject(subject_name):
             # Usa il file temporaneo dalla cattura remota
             image_path = temp_path
             cleanup_temp = True
+            app.logger.info(f"Usando file temporaneo: {image_path}")
         else:
             # Salvataggio temporaneo dell'immagine uploadata
             if not image:
+                app.logger.error("Nessuna immagine fornita")
                 return jsonify({"error": "Immagine è richiesta."}), 400
             
             image_path = f"./tmp/{image.filename}"
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             image.save(image_path)
             cleanup_temp = True
+            app.logger.info(f"File salvato come: {image_path}")
 
         # Aggiunta immagine al soggetto esistente
+        app.logger.info(f"Aggiunta immagine a CompreFace: {image_path}")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
         # Pulizia file temporaneo se necessario
         if cleanup_temp and os.path.exists(image_path):
             os.remove(image_path)
+            app.logger.info(f"File temporaneo rimosso: {image_path}")
 
         # Verifica successo operazione
         if 'image_id' not in response:
+            app.logger.error(f"Risposta CompreFace non valida: {response}")
             return jsonify({"error": "Errore durante l'aggiunta dell'immagine."}), 500
 
+        app.logger.info(f"Immagine aggiunta con successo, ID: {response.get('image_id')}")
         return jsonify({"message": f"Immagine aggiunta con successo al soggetto '{subject_name}'."}), 200
 
     except Exception as e:
@@ -337,10 +352,13 @@ def receive_remote_photo():
     try:
         data = request.get_json()
         if not data or 'photo_data' not in data:
+            app.logger.error("Dati foto mancanti nella richiesta")
             return jsonify({"error": "Dati foto mancanti"}), 400
         
         photo_data = data['photo_data']
         timestamp = data.get('timestamp', datetime.datetime.now().isoformat())
+        
+        app.logger.info("Foto ricevuta, inizio elaborazione...")
         
         # Estrai i dati base64 (rimuovi il prefisso data:image/jpeg;base64,)
         if photo_data.startswith('data:image/jpeg;base64,'):
@@ -349,22 +367,35 @@ def receive_remote_photo():
             base64_data = photo_data
         
         # Decodifica i dati base64
-        import base64
-        image_data = base64.b64decode(base64_data)
+        try:
+            image_data = base64.b64decode(base64_data)
+            app.logger.info(f"Dati base64 decodificati, dimensione: {len(image_data)} bytes")
+        except Exception as e:
+            app.logger.error(f"Errore decodifica base64: {str(e)}")
+            return jsonify({"error": "Errore decodifica immagine"}), 400
         
         # Genera nome file unico
-        import uuid
-        filename = f"remote_capture_{uuid.uuid4().hex}_{timestamp.replace(':', '-').replace('.', '-')}.jpg"
+        timestamp_clean = timestamp.replace(':', '-').replace('.', '-').replace('T', '_')
+        filename = f"remote_capture_{uuid.uuid4().hex[:8]}_{timestamp_clean}.jpg"
         temp_path = f"./tmp/{filename}"
         
+        app.logger.info(f"Salvataggio file: {temp_path}")
+        
         # Assicurati che la directory tmp esista
-        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        except Exception as e:
+            app.logger.error(f"Errore creazione directory tmp: {str(e)}")
+            return jsonify({"error": "Errore creazione directory temporanea"}), 500
         
         # Salva il file
-        with open(temp_path, 'wb') as f:
-            f.write(image_data)
-        
-        app.logger.info(f"Foto remota salvata: {temp_path}")
+        try:
+            with open(temp_path, 'wb') as f:
+                f.write(image_data)
+            app.logger.info(f"Foto remota salvata: {temp_path}")
+        except Exception as e:
+            app.logger.error(f"Errore salvataggio file: {str(e)}")
+            return jsonify({"error": "Errore salvataggio file"}), 500
         
         return jsonify({
             "status": "success",
