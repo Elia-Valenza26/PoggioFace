@@ -28,6 +28,7 @@ similarity_threshold = float(os.getenv('SIMILARITY_THRESHOLD'))
 face_plugins = os.getenv('FACE_PLUGINS')
 
 shelly_url = os.getenv('SHELLY_URL')
+dashboard_url = os.getenv('DASHBOARD_URL')
 
 # Abilita CORS per tutte le rotte dell'applicazione
 CORS(app)
@@ -228,12 +229,43 @@ def remote_photo_data():
         photo_data = data['photo_data']
         app.logger.info("Foto ricevuta dalla dashboard per il processing")
         
-        # Qui puoi aggiungere logica per salvare o processare la foto
-        # Per ora restituiamo solo successo
-        return jsonify({
-            "status": "success", 
-            "message": "Foto ricevuta correttamente"
-        })
+        # Invia la foto alla Dashboard per il salvataggio
+        if dashboard_url:
+            try:
+                dashboard_response = requests.post(
+                    f"{dashboard_url}/receive_remote_photo",
+                    json={
+                        "photo_data": photo_data,
+                        "timestamp": datetime.datetime.now().isoformat()
+                    },
+                    timeout=30
+                )
+                
+                if dashboard_response.ok:
+                    dashboard_result = dashboard_response.json()
+                    app.logger.info(f"Foto inviata alla Dashboard: {dashboard_result}")
+                    return jsonify({
+                        "status": "success", 
+                        "message": "Foto ricevuta e inviata alla Dashboard",
+                        "dashboard_response": dashboard_result
+                    })
+                else:
+                    app.logger.error(f"Errore invio foto alla Dashboard: {dashboard_response.status_code}")
+                    return jsonify({"error": "Errore durante l'invio alla Dashboard"}), 502
+                    
+            except requests.exceptions.Timeout:
+                app.logger.error("Timeout nell'invio foto alla Dashboard")
+                return jsonify({"error": "Timeout Dashboard"}), 504
+            except requests.exceptions.ConnectionError:
+                app.logger.error("Errore di connessione alla Dashboard")
+                return jsonify({"error": "Dashboard non raggiungibile"}), 503
+            except Exception as e:
+                app.logger.error(f"Errore generico invio Dashboard: {str(e)}")
+                return jsonify({"error": f"Errore Dashboard: {str(e)}"}), 500
+        else:
+            app.logger.warning("URL Dashboard non configurato")
+            return jsonify({"error": "URL Dashboard non configurato"}), 400
+        
     except Exception as e:
         app.logger.error(f"Errore processing foto remota: {str(e)}")
         return jsonify({"error": f"Errore: {str(e)}"}), 500

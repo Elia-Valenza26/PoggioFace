@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import logging
 import os
 import time
+import datetime
 import requests
 from compreface import CompreFace
 from compreface.collections import FaceCollection
@@ -300,6 +301,52 @@ def delete_image(image_id):
             return jsonify({"message": f"Soggetto '{subject_name}' e tutte le immagini associate eliminate."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/receive_remote_photo', methods=['POST'])
+def receive_remote_photo():
+    """Riceve foto dal servizio PoggioFace e la salva temporaneamente"""
+    try:
+        data = request.get_json()
+        if not data or 'photo_data' not in data:
+            return jsonify({"error": "Dati foto mancanti"}), 400
+        
+        photo_data = data['photo_data']
+        timestamp = data.get('timestamp', datetime.datetime.now().isoformat())
+        
+        # Estrai i dati base64 (rimuovi il prefisso data:image/jpeg;base64,)
+        if photo_data.startswith('data:image/jpeg;base64,'):
+            base64_data = photo_data.split(',')[1]
+        else:
+            base64_data = photo_data
+        
+        # Decodifica i dati base64
+        import base64
+        image_data = base64.b64decode(base64_data)
+        
+        # Genera nome file unico
+        import uuid
+        filename = f"remote_capture_{uuid.uuid4().hex}_{timestamp.replace(':', '-').replace('.', '-')}.jpg"
+        temp_path = f"./tmp/{filename}"
+        
+        # Assicurati che la directory tmp esista
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+        
+        # Salva il file
+        with open(temp_path, 'wb') as f:
+            f.write(image_data)
+        
+        app.logger.info(f"Foto remota salvata: {temp_path}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Foto ricevuta e salvata",
+            "filename": filename,
+            "temp_path": temp_path
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Errore ricezione foto remota: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
 
 # Avvio del server Flask in modalità debug su tutte le interfacce di rete
 if __name__ == '__main__':

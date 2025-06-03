@@ -277,7 +277,11 @@ function handleRemotePhoto(event) {
     if (event.data && event.data.type === 'photo_captured') {
         const photoData = event.data.data;
         
-        // Converte i dati base64 in un oggetto File
+        // La foto viene ora gestita automaticamente dal backend
+        // Mostra un messaggio di successo
+        showToast('Foto catturata e inviata al sistema!', 'success');
+        
+        // Simula un file per l'anteprima locale
         fetch(photoData)
             .then(res => res.blob())
             .then(blob => {
