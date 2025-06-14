@@ -148,134 +148,156 @@ def list_subjects():
 # Endpoint per aggiungere un nuovo soggetto con la sua prima immagine
 @app.route('/subjects', methods=['POST'])
 def add_subject():
+    image_path = None
+    cleanup_temp = False
+
     try:
         subject_name = request.form.get('subject')
-        image = request.files.get('image')
-        temp_path = request.form.get('temp_path')
+        image_file = request.files.get('image') # Rinominato per chiarezza
+        temp_path_form = request.form.get('temp_path') # Rinominato per chiarezza
+
+        app.logger.info(f"Tentativo di aggiunta soggetto: {subject_name}, image_file: {image_file}, temp_path_form: {temp_path_form}")
 
         # Validazione input
-        if not subject_name or (not image and not temp_path):
-            return jsonify({"error": "Nome soggetto e immagine sono richiesti."}), 400
+        if not subject_name or (not image_file and not temp_path_form):
+            app.logger.error("Nome soggetto e immagine (o percorso temporaneo) sono richiesti.")
+            return jsonify({"error": "Nome soggetto e immagine (o percorso temporaneo) sono richiesti."}), 400
 
-        # Determina il percorso dell'immagine da utilizzare
-        cleanup_temp = False
-        if temp_path and os.path.exists(temp_path):
-            # Usa il file temporaneo dalla cattura remota
-            image_path = temp_path
-            cleanup_temp = True  # IMPORTANTE: marca per pulizia
-        else:
-            # Salvataggio temporaneo dell'immagine uploadata
-            if not image:
-                return jsonify({"error": "Immagine è richiesta."}), 400
-            
-            image_path = os.path.join(os.path.dirname(__file__), 'tmp', image.filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            image.save(image_path)
+        # Verifica se il soggetto esiste già
+        existing_subjects = retry(lambda: subjects.list(), retries=3, delay=1).get('subjects', [])
+        if subject_name in existing_subjects:
+            app.logger.warning(f"Tentativo di aggiungere un soggetto esistente: {subject_name}")
+            return jsonify({"error": f"Soggetto '{subject_name}' esiste già."}), 409
+
+        # Determina il percorso dell'immagine da utilizzare e se deve essere pulita
+        if temp_path_form and os.path.exists(temp_path_form):
+            image_path = temp_path_form
             cleanup_temp = True
+            app.logger.info(f"Usando file temporaneo per nuovo soggetto: {image_path}")
+        elif image_file:
+            filename = image_file.filename
+            if not filename:
+                 app.logger.error("Nome file immagine vuoto per nuovo soggetto.")
+                 return jsonify({"error": "Nome file immagine non valido."}), 400
+            
+            image_path = os.path.join(os.path.dirname(__file__), 'tmp', filename)
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            image_file.save(image_path)
+            cleanup_temp = True
+            app.logger.info(f"File salvato per nuovo soggetto come: {image_path}")
+        else: # Caso teorico, già coperto dalla validazione iniziale
+            app.logger.error("Nessuna immagine valida fornita per nuovo soggetto.")
+            return jsonify({"error": "Immagine valida è richiesta."}), 400
+
 
         # Registrazione del soggetto nella collezione CompreFace
+        app.logger.info(f"Aggiunta soggetto '{subject_name}' a CompreFace.")
         retry(lambda: safe_add_subject(subject_name), retries=3, delay=1)
 
         # Aggiunta dell'immagine al soggetto
+        app.logger.info(f"Aggiunta immagine '{image_path}' al soggetto '{subject_name}'.")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
-
-        # Pulizia file temporaneo (MIGLIORATA)
-        if cleanup_temp and os.path.exists(image_path):
-            try:
-                os.remove(image_path)
-                app.logger.info(f"File temporaneo rimosso con successo: {image_path}")
-            except Exception as cleanup_error:
-                app.logger.warning(f"Errore durante la rimozione del file temporaneo {image_path}: {str(cleanup_error)}")
 
         # Verifica successo operazione
         if 'image_id' not in response:
-            return jsonify({"error": "Errore durante l'aggiunta dell'immagine."}), 500
-
+            app.logger.error(f"Risposta CompreFace non valida per aggiunta immagine a nuovo soggetto: {response}")
+            # Il blocco finally gestirà la pulizia
+            # Potrebbe essere necessario un rollback del soggetto se l'aggiunta immagine fallisce criticamente
+            return jsonify({"error": "Errore durante l'aggiunta dell'immagine al nuovo soggetto."}), 500
+        
+        app.logger.info(f"Soggetto '{subject_name}' e immagine aggiunti con successo. ID immagine: {response.get('image_id')}")
         return jsonify({"message": f"Soggetto '{subject_name}' e immagine aggiunti con successo."}), 200
 
     except Exception as e:
-        app.logger.error(f"Errore durante l'aggiunta del soggetto: {str(e)}")
-        # Pulizia di emergenza in caso di errore
-        if 'image_path' in locals() and 'cleanup_temp' in locals() and cleanup_temp and os.path.exists(image_path):
+        app.logger.error(f"Errore generale durante l'aggiunta del soggetto: {str(e)}")
+        # Il blocco finally gestirà la pulizia
+        return jsonify({"error": f"Errore generale durante l'aggiunta del soggetto: {str(e)}"}), 500
+    finally:
+        if cleanup_temp and image_path and os.path.exists(image_path):
             try:
                 os.remove(image_path)
-                app.logger.info(f"File temporaneo rimosso dopo errore: {image_path}")
-            except:
-                pass
-        return jsonify({"error": f"Errore durante l'aggiunta del soggetto: {str(e)}"}), 500
+                app.logger.info(f"File temporaneo rimosso con successo (finally add_subject): {image_path}")
+            except Exception as cleanup_error:
+                app.logger.warning(f"Errore durante la rimozione del file temporaneo (finally add_subject) {image_path}: {str(cleanup_error)}")
+        elif cleanup_temp and image_path:
+             app.logger.info(f"File temporaneo {image_path} non trovato per la pulizia (finally add_subject) o non previsto per la pulizia.")
+
 
 # Endpoint per aggiungere un'immagine aggiuntiva a un soggetto esistente
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
 def add_image_to_subject(subject_name):
+    image_path = None  # Percorso del file da pulire
+    cleanup_temp = False # Flag per indicare se la pulizia è necessaria
+
     try:
         app.logger.info(f"Aggiunta immagine per soggetto: {subject_name}")
         
         # Verifica esistenza del soggetto
-        all_subjects = retry(lambda: subjects.list(), retries=3, delay=1)
+        all_subjects_list = retry(lambda: subjects.list(), retries=3, delay=1)
         
-        if subject_name not in all_subjects.get('subjects', []):
+        if subject_name not in all_subjects_list.get('subjects', []):
             app.logger.error(f"Soggetto '{subject_name}' non trovato")
             return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
         
-        image = request.files.get('image')
-        temp_path = request.form.get('temp_path')
+        image_file = request.files.get('image') # Rinominato per chiarezza
+        temp_path_form = request.form.get('temp_path') # Rinominato per chiarezza
         
-        app.logger.info(f"Image file: {image}, temp_path: {temp_path}")
+        app.logger.info(f"Image file: {image_file}, temp_path: {temp_path_form}")
         
         # Validazione input
-        if not image and not temp_path:
+        if not image_file and not temp_path_form:
             app.logger.error("Nessuna immagine o percorso temporaneo fornito")
             return jsonify({"error": "Immagine è richiesta."}), 400
-
-        # Determina il percorso dell'immagine da utilizzare
-        cleanup_temp = False
-        if temp_path and os.path.exists(temp_path):
+        
+        # Determina il percorso dell'immagine da utilizzare e se deve essere pulita
+        if temp_path_form and os.path.exists(temp_path_form):
             # Usa il file temporaneo dalla cattura remota
-            image_path = temp_path
-            cleanup_temp = True  # IMPORTANTE: marca per pulizia il file remoto
+            image_path = temp_path_form
+            cleanup_temp = True 
             app.logger.info(f"Usando file temporaneo: {image_path}")
-        else:
+        elif image_file: # Modificato per usare elif e gestire il caso di image_file
             # Salvataggio temporaneo dell'immagine uploadata
-            if not image:
-                app.logger.error("Nessuna immagine fornita")
-                return jsonify({"error": "Immagine è richiesta."}), 400
-            
-            image_path = os.path.join(os.path.dirname(__file__), 'tmp', image.filename)
+            filename = image_file.filename 
+            if not filename:
+                 app.logger.error("Nome file immagine vuoto.")
+                 return jsonify({"error": "Nome file immagine non valido."}), 400
+
+            image_path = os.path.join(os.path.dirname(__file__), 'tmp', filename)
+            # Assicurati che la directory tmp esista
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            image.save(image_path)
-            cleanup_temp = True
+            image_file.save(image_path)
+            cleanup_temp = True # Marca per pulizia
             app.logger.info(f"File salvato come: {image_path}")
+        else: # Caso teorico, già coperto dalla validazione iniziale
+            app.logger.error("Nessuna immagine valida fornita.")
+            return jsonify({"error": "Immagine valida è richiesta."}), 400
 
         # Aggiunta immagine al soggetto esistente
         app.logger.info(f"Aggiunta immagine a CompreFace: {image_path}")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Pulizia file temporaneo (MODIFICATO per funzionare con entrambi i tipi)
-        if cleanup_temp and os.path.exists(image_path):
-            try:
-                os.remove(image_path)
-                app.logger.info(f"File temporaneo rimosso con successo: {image_path}")
-            except Exception as cleanup_error:
-                app.logger.warning(f"Errore durante la rimozione del file temporaneo {image_path}: {str(cleanup_error)}")
-
-        # Verifica successo operazione
+        # Verifica successo operazione CompreFace
         if 'image_id' not in response:
             app.logger.error(f"Risposta CompreFace non valida: {response}")
-            return jsonify({"error": "Errore durante l'aggiunta dell'immagine."}), 500
+            # Il blocco finally gestirà la pulizia
+            return jsonify({"error": "Errore durante l'aggiunta dell'immagine a CompreFace."}), 500
 
         app.logger.info(f"Immagine aggiunta con successo, ID: {response.get('image_id')}")
         return jsonify({"message": f"Immagine aggiunta con successo al soggetto '{subject_name}'."}), 200
 
     except Exception as e:
-        app.logger.error(f"Errore durante l'aggiunta dell'immagine: {str(e)}")
-        # Pulizia di emergenza in caso di errore
-        if 'image_path' in locals() and 'cleanup_temp' in locals() and cleanup_temp and os.path.exists(image_path):
+        app.logger.error(f"Errore generale durante l'aggiunta dell'immagine: {str(e)}")
+        # Il blocco finally gestirà la pulizia
+        return jsonify({"error": f"Errore generale durante l'aggiunta dell'immagine: {str(e)}"}), 500
+    finally:
+        if cleanup_temp and image_path and os.path.exists(image_path):
             try:
                 os.remove(image_path)
-                app.logger.info(f"File temporaneo rimosso dopo errore: {image_path}")
-            except:
-                pass
-        return jsonify({"error": f"Errore durante l'aggiunta dell'immagine: {str(e)}"}), 500
+                app.logger.info(f"File temporaneo rimosso con successo (finally add_image_to_subject): {image_path}")
+            except Exception as cleanup_error:
+                app.logger.warning(f"Errore durante la rimozione del file temporaneo (finally add_image_to_subject) {image_path}: {str(cleanup_error)}")
+        elif cleanup_temp and image_path: # Se doveva essere pulito ma non esisteva
+             app.logger.info(f"File temporaneo {image_path} non trovato per la pulizia (finally add_image_to_subject) o non previsto per la pulizia.")
 
 # Endpoint per rinominare un soggetto esistente
 @app.route('/subjects/<string:old_subject_name>', methods=['PUT'])
