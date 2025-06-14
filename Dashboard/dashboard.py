@@ -3,10 +3,13 @@ from dotenv import load_dotenv
 import logging
 import os
 import time
-import datetime
 import requests
 import uuid
 import base64
+
+import threading
+from datetime import datetime, timedelta
+
 from compreface import CompreFace
 from compreface.collections import FaceCollection
 from compreface.service import RecognitionService
@@ -443,6 +446,48 @@ def cleanup_temp_files():
     except Exception as e:
         app.logger.error(f"Errore durante la pulizia dei file temporanei: {str(e)}")
         return jsonify({"error": f"Errore durante la pulizia: {str(e)}"}), 500
+
+def cleanup_old_temp_files():
+    """Funzione per pulire automaticamente i file temporanei più vecchi di 1 ora"""
+    try:
+        if not os.path.exists(TMP_FOLDER_PATH):
+            return
+        
+        cutoff_time = datetime.now() - timedelta(hours=1)
+        cleaned_count = 0
+        
+        for filename in os.listdir(TMP_FOLDER_PATH):
+            file_path = os.path.join(TMP_FOLDER_PATH, filename)
+            
+            try:
+                # Controlla se il file è più vecchio di 1 ora
+                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                if file_time < cutoff_time:
+                    os.remove(file_path)
+                    cleaned_count += 1
+                    app.logger.info(f"File temporaneo vecchio rimosso: {file_path}")
+            except Exception as e:
+                app.logger.error(f"Errore rimozione file temporaneo vecchio {file_path}: {str(e)}")
+        
+        if cleaned_count > 0:
+            app.logger.info(f"Pulizia automatica completata: {cleaned_count} file rimossi")
+            
+    except Exception as e:
+        app.logger.error(f"Errore durante la pulizia automatica: {str(e)}")
+
+def start_cleanup_scheduler():
+    """Avvia un thread per la pulizia periodica dei file temporanei"""
+    def cleanup_loop():
+        while True:
+            time.sleep(3600)  # Esegue ogni ora
+            cleanup_old_temp_files()
+    
+    cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
+    cleanup_thread.start()
+    app.logger.info("Scheduler pulizia file temporanei avviato")
+
+# Avvia lo scheduler quando l'app parte
+start_cleanup_scheduler()
 
 
 # Avvio del server Flask in modalità debug su tutte le interfacce di rete

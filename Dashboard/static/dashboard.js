@@ -972,9 +972,12 @@ function scheduleCleanupTempFiles(tempFiles, delay = 5000) {
     }
     
     console.log(`Programmata pulizia di ${tempFiles.length} file temporanei tra ${delay}ms`);
+    console.log('File da pulire:', tempFiles);
     
     setTimeout(async () => {
         try {
+            console.log('Avvio pulizia file temporanei...');
+            
             const response = await fetch('/cleanup_temp_files', {
                 method: 'POST',
                 headers: {
@@ -988,15 +991,18 @@ function scheduleCleanupTempFiles(tempFiles, delay = 5000) {
             const result = await response.json();
             
             if (response.ok) {
-                console.log('Pulizia file temporanei completata:', result.message);
+                console.log('✅ Pulizia file temporanei completata:', result.message);
+                if (result.cleaned_files && result.cleaned_files.length > 0) {
+                    console.log('File rimossi:', result.cleaned_files);
+                }
                 if (result.failed_files && result.failed_files.length > 0) {
-                    console.warn('Alcuni file non sono stati rimossi:', result.failed_files);
+                    console.warn('⚠️ Alcuni file non sono stati rimossi:', result.failed_files);
                 }
             } else {
-                console.error('Errore durante la pulizia dei file temporanei:', result.error);
+                console.error('❌ Errore durante la pulizia dei file temporanei:', result.error);
             }
         } catch (error) {
-            console.error('Errore nella richiesta di pulizia:', error);
+            console.error('❌ Errore nella richiesta di pulizia:', error);
         }
     }, delay);
 }
