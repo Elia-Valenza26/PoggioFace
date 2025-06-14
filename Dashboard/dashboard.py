@@ -154,12 +154,12 @@ def list_subjects():
 @app.route('/subjects', methods=['POST'])
 def add_subject():
     image_path = None
-    cleanup_temp = False
+    temp_files_to_cleanup = []  # Lista dei file da pulire successivamente
 
     try:
         subject_name = request.form.get('subject')
         image_file = request.files.get('image')
-        temp_path_form = request.form.get('temp_path') # Questo sarà un percorso assoluto se proviene da receive_remote_photo
+        temp_path_form = request.form.get('temp_path')
 
         app.logger.info(f"Tentativo di aggiunta soggetto: {subject_name}, image_file: {image_file}, temp_path_form: {temp_path_form}")
 
@@ -173,8 +173,8 @@ def add_subject():
             return jsonify({"error": f"Soggetto '{subject_name}' esiste già."}), 409
 
         if temp_path_form and os.path.exists(temp_path_form):
-            image_path = temp_path_form # temp_path_form è già un percorso assoluto
-            cleanup_temp = True
+            image_path = temp_path_form
+            temp_files_to_cleanup.append(temp_path_form)  # Aggiungi alla lista
             app.logger.info(f"Usando file temporaneo (absolute) per nuovo soggetto: {image_path}")
         elif image_file:
             filename = image_file.filename
@@ -182,10 +182,10 @@ def add_subject():
                  app.logger.error("Nome file immagine vuoto per nuovo soggetto.")
                  return jsonify({"error": "Nome file immagine non valido."}), 400
             
-            image_path = os.path.join(TMP_FOLDER_PATH, filename) # Crea percorso assoluto
-            os.makedirs(TMP_FOLDER_PATH, exist_ok=True) # Assicura che la directory esista
+            image_path = os.path.join(TMP_FOLDER_PATH, filename)
+            os.makedirs(TMP_FOLDER_PATH, exist_ok=True)
             image_file.save(image_path)
-            cleanup_temp = True
+            temp_files_to_cleanup.append(image_path)  # Aggiungi alla lista
             app.logger.info(f"File salvato per nuovo soggetto come (absolute): {image_path}")
         else:
             app.logger.error("Nessuna immagine valida fornita per nuovo soggetto.")
@@ -200,29 +200,24 @@ def add_subject():
         if 'image_id' not in response:
             app.logger.error(f"Risposta CompreFace non valida per aggiunta immagine a nuovo soggetto: {response}")
             return jsonify({"error": "Errore durante l'aggiunta dell'immagine al nuovo soggetto."}), 500
-        
+
         app.logger.info(f"Soggetto '{subject_name}' e immagine aggiunti con successo. ID immagine: {response.get('image_id')}")
-        return jsonify({"message": f"Soggetto '{subject_name}' e immagine aggiunti con successo."}), 200
+        
+        # Restituisci la lista dei file da pulire per la pulizia asincrona
+        return jsonify({
+            "message": f"Soggetto '{subject_name}' e immagine aggiunti con successo.",
+            "temp_files": temp_files_to_cleanup  # Invia la lista dei file temporanei
+        }), 200
 
     except Exception as e:
         app.logger.error(f"Errore generale durante l'aggiunta del soggetto: {str(e)}")
         return jsonify({"error": f"Errore generale durante l'aggiunta del soggetto: {str(e)}"}), 500
-    finally:
-        if cleanup_temp and image_path and os.path.exists(image_path): # image_path è assoluto
-            try:
-                os.remove(image_path) # image_path è assoluto
-                app.logger.info(f"File temporaneo rimosso con successo (finally add_subject): {image_path}")
-            except Exception as cleanup_error:
-                app.logger.warning(f"Errore durante la rimozione del file temporaneo (finally add_subject) {image_path}: {str(cleanup_error)}")
-        elif cleanup_temp and image_path:
-             app.logger.info(f"File temporaneo {image_path} non trovato per la pulizia (finally add_subject) o non previsto per la pulizia.")
-
 
 # Endpoint per aggiungere un'immagine aggiuntiva a un soggetto esistente
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
 def add_image_to_subject(subject_name):
     image_path = None
-    cleanup_temp = False
+    temp_files_to_cleanup = []  # Lista dei file da pulire successivamente
 
     try:
         app.logger.info(f"Aggiunta immagine per soggetto: {subject_name}")
@@ -233,7 +228,7 @@ def add_image_to_subject(subject_name):
             return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
         
         image_file = request.files.get('image')
-        temp_path_form = request.form.get('temp_path') # Questo sarà un percorso assoluto
+        temp_path_form = request.form.get('temp_path')
         
         app.logger.info(f"Image file: {image_file}, temp_path: {temp_path_form}")
         
@@ -242,8 +237,8 @@ def add_image_to_subject(subject_name):
             return jsonify({"error": "Immagine è richiesta."}), 400
         
         if temp_path_form and os.path.exists(temp_path_form):
-            image_path = temp_path_form # temp_path_form è già un percorso assoluto
-            cleanup_temp = True 
+            image_path = temp_path_form
+            temp_files_to_cleanup.append(temp_path_form)  # Aggiungi alla lista
             app.logger.info(f"Usando file temporaneo (absolute): {image_path}")
         elif image_file:
             filename = image_file.filename 
@@ -251,10 +246,10 @@ def add_image_to_subject(subject_name):
                  app.logger.error("Nome file immagine vuoto.")
                  return jsonify({"error": "Nome file immagine non valido."}), 400
 
-            image_path = os.path.join(TMP_FOLDER_PATH, filename) # Crea percorso assoluto
-            os.makedirs(TMP_FOLDER_PATH, exist_ok=True) # Assicura che la directory esista
+            image_path = os.path.join(TMP_FOLDER_PATH, filename)
+            os.makedirs(TMP_FOLDER_PATH, exist_ok=True)
             image_file.save(image_path)
-            cleanup_temp = True
+            temp_files_to_cleanup.append(image_path)  # Aggiungi alla lista
             app.logger.info(f"File salvato come (absolute): {image_path}")
         else:
             app.logger.error("Nessuna immagine valida fornita.")
@@ -268,20 +263,15 @@ def add_image_to_subject(subject_name):
             return jsonify({"error": "Errore durante l'aggiunta dell'immagine a CompreFace."}), 500
 
         app.logger.info(f"Immagine aggiunta con successo, ID: {response.get('image_id')}")
-        return jsonify({"message": f"Immagine aggiunta con successo al soggetto '{subject_name}'."}), 200
+        
+        return jsonify({
+            "message": f"Immagine aggiunta con successo al soggetto '{subject_name}'.",
+            "temp_files": temp_files_to_cleanup  # Invia la lista dei file temporanei
+        }), 200
 
     except Exception as e:
         app.logger.error(f"Errore generale durante l'aggiunta dell'immagine: {str(e)}")
         return jsonify({"error": f"Errore generale durante l'aggiunta dell'immagine: {str(e)}"}), 500
-    finally:
-        if cleanup_temp and image_path and os.path.exists(image_path): # image_path è assoluto
-            try:
-                os.remove(image_path) # image_path è assoluto
-                app.logger.info(f"File temporaneo rimosso con successo (finally add_image_to_subject): {image_path}")
-            except Exception as cleanup_error:
-                app.logger.warning(f"Errore durante la rimozione del file temporaneo (finally add_image_to_subject) {image_path}: {str(cleanup_error)}")
-        elif cleanup_temp and image_path:
-             app.logger.info(f"File temporaneo {image_path} non trovato per la pulizia (finally add_image_to_subject) o non previsto per la pulizia.")
 
 # Endpoint per rinominare un soggetto esistente
 @app.route('/subjects/<string:old_subject_name>', methods=['PUT'])
@@ -418,6 +408,42 @@ def receive_remote_photo():
     except Exception as e:
         app.logger.error(f"Errore ricezione foto remota: {str(e)}")
         return jsonify({"error": f"Errore generico: {str(e)}"}), 500
+    
+@app.route('/cleanup_temp_files', methods=['POST'])
+def cleanup_temp_files():
+    """Endpoint per pulire i file temporanei dopo un upload riuscito"""
+    try:
+        data = request.get_json()
+        temp_files = data.get('temp_files', [])
+        
+        if not temp_files:
+            return jsonify({"message": "Nessun file da pulire"}), 200
+        
+        cleaned_files = []
+        failed_files = []
+        
+        for file_path in temp_files:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    cleaned_files.append(file_path)
+                    app.logger.info(f"File temporaneo rimosso con successo: {file_path}")
+                else:
+                    app.logger.warning(f"File temporaneo non trovato per la pulizia: {file_path}")
+            except Exception as cleanup_error:
+                app.logger.error(f"Errore durante la rimozione del file temporaneo {file_path}: {str(cleanup_error)}")
+                failed_files.append(file_path)
+        
+        return jsonify({
+            "message": f"Pulizia completata. {len(cleaned_files)} file rimossi.",
+            "cleaned_files": cleaned_files,
+            "failed_files": failed_files
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Errore durante la pulizia dei file temporanei: {str(e)}")
+        return jsonify({"error": f"Errore durante la pulizia: {str(e)}"}), 500
+
 
 # Avvio del server Flask in modalità debug su tutte le interfacce di rete
 if __name__ == '__main__':

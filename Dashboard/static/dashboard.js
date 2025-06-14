@@ -653,6 +653,11 @@ async function addSubject() {
             throw new Error(result.error || 'Errore durante l\'aggiunta del soggetto');
         }
         
+        // Programma la pulizia dei file temporanei se presenti
+        if (result.temp_files && result.temp_files.length > 0) {
+            scheduleCleanupTempFiles(result.temp_files, 5000); // 5 secondi di delay
+        }
+        
         // Aggiorna la lista dei soggetti
         await fetchSubjects();
         
@@ -742,9 +747,6 @@ async function renameSubject() {
     }
 }
 
-/**
- * Aggiunge un'immagine a un soggetto esistente
- */
 async function addImageToSubject() {
     const subject = document.getElementById('image-subject-name').value;
     const image = document.getElementById('new-subject-image').files[0];
@@ -790,6 +792,11 @@ async function addImageToSubject() {
         
         if (!response.ok) {
             throw new Error(result.error || 'Errore durante l\'aggiunta dell\'immagine');
+        }
+        
+        // Programma la pulizia dei file temporanei se presenti
+        if (result.temp_files && result.temp_files.length > 0) {
+            scheduleCleanupTempFiles(result.temp_files, 5000); // 5 secondi di delay
         }
         
         // Chiude il modal e reset del form
@@ -952,6 +959,46 @@ function resetDetailsPanel() {
             <p>Seleziona un soggetto per visualizzare i dettagli</p>
         </div>
     `;
+}
+
+/**
+ * Funzione helper per pulire i file temporanei dopo un delay
+ * @param {Array} tempFiles - Array dei percorsi dei file temporanei da pulire
+ * @param {number} delay - Delay in millisecondi prima della pulizia (default: 5000ms)
+ */
+function scheduleCleanupTempFiles(tempFiles, delay = 5000) {
+    if (!tempFiles || tempFiles.length === 0) {
+        return;
+    }
+    
+    console.log(`Programmata pulizia di ${tempFiles.length} file temporanei tra ${delay}ms`);
+    
+    setTimeout(async () => {
+        try {
+            const response = await fetch('/cleanup_temp_files', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    temp_files: tempFiles
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                console.log('Pulizia file temporanei completata:', result.message);
+                if (result.failed_files && result.failed_files.length > 0) {
+                    console.warn('Alcuni file non sono stati rimossi:', result.failed_files);
+                }
+            } else {
+                console.error('Errore durante la pulizia dei file temporanei:', result.error);
+            }
+        } catch (error) {
+            console.error('Errore nella richiesta di pulizia:', error);
+        }
+    }, delay);
 }
 
 /**
