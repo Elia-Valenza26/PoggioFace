@@ -158,10 +158,11 @@ def add_subject():
             return jsonify({"error": "Nome soggetto e immagine sono richiesti."}), 400
 
         # Determina il percorso dell'immagine da utilizzare
+        cleanup_temp = False
         if temp_path and os.path.exists(temp_path):
             # Usa il file temporaneo dalla cattura remota
             image_path = temp_path
-            cleanup_temp = True
+            cleanup_temp = True  # IMPORTANTE: marca per pulizia
         else:
             # Salvataggio temporaneo dell'immagine uploadata
             if not image:
@@ -178,9 +179,13 @@ def add_subject():
         # Aggiunta dell'immagine al soggetto
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Pulizia file temporaneo se necessario
+        # Pulizia file temporaneo (MIGLIORATA)
         if cleanup_temp and os.path.exists(image_path):
-            os.remove(image_path)
+            try:
+                os.remove(image_path)
+                app.logger.info(f"File temporaneo rimosso con successo: {image_path}")
+            except Exception as cleanup_error:
+                app.logger.warning(f"Errore durante la rimozione del file temporaneo {image_path}: {str(cleanup_error)}")
 
         # Verifica successo operazione
         if 'image_id' not in response:
@@ -190,8 +195,14 @@ def add_subject():
 
     except Exception as e:
         app.logger.error(f"Errore durante l'aggiunta del soggetto: {str(e)}")
+        # Pulizia di emergenza in caso di errore
+        if 'image_path' in locals() and 'cleanup_temp' in locals() and cleanup_temp and os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+                app.logger.info(f"File temporaneo rimosso dopo errore: {image_path}")
+            except:
+                pass
         return jsonify({"error": f"Errore durante l'aggiunta del soggetto: {str(e)}"}), 500
-
 
 # Endpoint per aggiungere un'immagine aggiuntiva a un soggetto esistente
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
@@ -217,10 +228,11 @@ def add_image_to_subject(subject_name):
             return jsonify({"error": "Immagine è richiesta."}), 400
 
         # Determina il percorso dell'immagine da utilizzare
+        cleanup_temp = False
         if temp_path and os.path.exists(temp_path):
             # Usa il file temporaneo dalla cattura remota
             image_path = temp_path
-            cleanup_temp = True
+            cleanup_temp = True  # IMPORTANTE: marca per pulizia il file remoto
             app.logger.info(f"Usando file temporaneo: {image_path}")
         else:
             # Salvataggio temporaneo dell'immagine uploadata
@@ -238,10 +250,13 @@ def add_image_to_subject(subject_name):
         app.logger.info(f"Aggiunta immagine a CompreFace: {image_path}")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Pulizia file temporaneo se necessario
+        # Pulizia file temporaneo (MODIFICATO per funzionare con entrambi i tipi)
         if cleanup_temp and os.path.exists(image_path):
-            os.remove(image_path)
-            app.logger.info(f"File temporaneo rimosso: {image_path}")
+            try:
+                os.remove(image_path)
+                app.logger.info(f"File temporaneo rimosso con successo: {image_path}")
+            except Exception as cleanup_error:
+                app.logger.warning(f"Errore durante la rimozione del file temporaneo {image_path}: {str(cleanup_error)}")
 
         # Verifica successo operazione
         if 'image_id' not in response:
@@ -253,8 +268,14 @@ def add_image_to_subject(subject_name):
 
     except Exception as e:
         app.logger.error(f"Errore durante l'aggiunta dell'immagine: {str(e)}")
+        # Pulizia di emergenza in caso di errore
+        if 'image_path' in locals() and 'cleanup_temp' in locals() and cleanup_temp and os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+                app.logger.info(f"File temporaneo rimosso dopo errore: {image_path}")
+            except:
+                pass
         return jsonify({"error": f"Errore durante l'aggiunta dell'immagine: {str(e)}"}), 500
-
 
 # Endpoint per rinominare un soggetto esistente
 @app.route('/subjects/<string:old_subject_name>', methods=['PUT'])
