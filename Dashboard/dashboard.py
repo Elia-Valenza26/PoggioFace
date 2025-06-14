@@ -19,6 +19,11 @@ PORT: str = os.getenv('PORT', '8000')
 API_KEY: str = os.getenv('API_KEY')
 DETECTION_PROBABILITY_THRESHOLD: float = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD', 0.8))
 
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+TMP_FOLDER_PATH = os.path.join(APP_ROOT, 'tmp')
+os.makedirs(TMP_FOLDER_PATH, exist_ok=True)
+
+
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)
 
@@ -153,56 +158,47 @@ def add_subject():
 
     try:
         subject_name = request.form.get('subject')
-        image_file = request.files.get('image') # Rinominato per chiarezza
-        temp_path_form = request.form.get('temp_path') # Rinominato per chiarezza
+        image_file = request.files.get('image')
+        temp_path_form = request.form.get('temp_path') # Questo sarà un percorso assoluto se proviene da receive_remote_photo
 
         app.logger.info(f"Tentativo di aggiunta soggetto: {subject_name}, image_file: {image_file}, temp_path_form: {temp_path_form}")
 
-        # Validazione input
         if not subject_name or (not image_file and not temp_path_form):
             app.logger.error("Nome soggetto e immagine (o percorso temporaneo) sono richiesti.")
             return jsonify({"error": "Nome soggetto e immagine (o percorso temporaneo) sono richiesti."}), 400
 
-        # Verifica se il soggetto esiste già
         existing_subjects = retry(lambda: subjects.list(), retries=3, delay=1).get('subjects', [])
         if subject_name in existing_subjects:
             app.logger.warning(f"Tentativo di aggiungere un soggetto esistente: {subject_name}")
             return jsonify({"error": f"Soggetto '{subject_name}' esiste già."}), 409
 
-        # Determina il percorso dell'immagine da utilizzare e se deve essere pulita
         if temp_path_form and os.path.exists(temp_path_form):
-            image_path = temp_path_form
+            image_path = temp_path_form # temp_path_form è già un percorso assoluto
             cleanup_temp = True
-            app.logger.info(f"Usando file temporaneo per nuovo soggetto: {image_path}")
+            app.logger.info(f"Usando file temporaneo (absolute) per nuovo soggetto: {image_path}")
         elif image_file:
             filename = image_file.filename
             if not filename:
                  app.logger.error("Nome file immagine vuoto per nuovo soggetto.")
                  return jsonify({"error": "Nome file immagine non valido."}), 400
             
-            image_path = os.path.join(os.path.dirname(__file__), 'tmp', filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            image_path = os.path.join(TMP_FOLDER_PATH, filename) # Crea percorso assoluto
+            os.makedirs(TMP_FOLDER_PATH, exist_ok=True) # Assicura che la directory esista
             image_file.save(image_path)
             cleanup_temp = True
-            app.logger.info(f"File salvato per nuovo soggetto come: {image_path}")
-        else: # Caso teorico, già coperto dalla validazione iniziale
+            app.logger.info(f"File salvato per nuovo soggetto come (absolute): {image_path}")
+        else:
             app.logger.error("Nessuna immagine valida fornita per nuovo soggetto.")
             return jsonify({"error": "Immagine valida è richiesta."}), 400
 
-
-        # Registrazione del soggetto nella collezione CompreFace
         app.logger.info(f"Aggiunta soggetto '{subject_name}' a CompreFace.")
         retry(lambda: safe_add_subject(subject_name), retries=3, delay=1)
 
-        # Aggiunta dell'immagine al soggetto
         app.logger.info(f"Aggiunta immagine '{image_path}' al soggetto '{subject_name}'.")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Verifica successo operazione
         if 'image_id' not in response:
             app.logger.error(f"Risposta CompreFace non valida per aggiunta immagine a nuovo soggetto: {response}")
-            # Il blocco finally gestirà la pulizia
-            # Potrebbe essere necessario un rollback del soggetto se l'aggiunta immagine fallisce criticamente
             return jsonify({"error": "Errore durante l'aggiunta dell'immagine al nuovo soggetto."}), 500
         
         app.logger.info(f"Soggetto '{subject_name}' e immagine aggiunti con successo. ID immagine: {response.get('image_id')}")
@@ -210,12 +206,11 @@ def add_subject():
 
     except Exception as e:
         app.logger.error(f"Errore generale durante l'aggiunta del soggetto: {str(e)}")
-        # Il blocco finally gestirà la pulizia
         return jsonify({"error": f"Errore generale durante l'aggiunta del soggetto: {str(e)}"}), 500
     finally:
-        if cleanup_temp and image_path and os.path.exists(image_path):
+        if cleanup_temp and image_path and os.path.exists(image_path): # image_path è assoluto
             try:
-                os.remove(image_path)
+                os.remove(image_path) # image_path è assoluto
                 app.logger.info(f"File temporaneo rimosso con successo (finally add_subject): {image_path}")
             except Exception as cleanup_error:
                 app.logger.warning(f"Errore durante la rimozione del file temporaneo (finally add_subject) {image_path}: {str(cleanup_error)}")
@@ -226,60 +221,50 @@ def add_subject():
 # Endpoint per aggiungere un'immagine aggiuntiva a un soggetto esistente
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
 def add_image_to_subject(subject_name):
-    image_path = None  # Percorso del file da pulire
-    cleanup_temp = False # Flag per indicare se la pulizia è necessaria
+    image_path = None
+    cleanup_temp = False
 
     try:
         app.logger.info(f"Aggiunta immagine per soggetto: {subject_name}")
         
-        # Verifica esistenza del soggetto
         all_subjects_list = retry(lambda: subjects.list(), retries=3, delay=1)
-        
         if subject_name not in all_subjects_list.get('subjects', []):
             app.logger.error(f"Soggetto '{subject_name}' non trovato")
             return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
         
-        image_file = request.files.get('image') # Rinominato per chiarezza
-        temp_path_form = request.form.get('temp_path') # Rinominato per chiarezza
+        image_file = request.files.get('image')
+        temp_path_form = request.form.get('temp_path') # Questo sarà un percorso assoluto
         
         app.logger.info(f"Image file: {image_file}, temp_path: {temp_path_form}")
         
-        # Validazione input
         if not image_file and not temp_path_form:
             app.logger.error("Nessuna immagine o percorso temporaneo fornito")
             return jsonify({"error": "Immagine è richiesta."}), 400
         
-        # Determina il percorso dell'immagine da utilizzare e se deve essere pulita
         if temp_path_form and os.path.exists(temp_path_form):
-            # Usa il file temporaneo dalla cattura remota
-            image_path = temp_path_form
+            image_path = temp_path_form # temp_path_form è già un percorso assoluto
             cleanup_temp = True 
-            app.logger.info(f"Usando file temporaneo: {image_path}")
-        elif image_file: # Modificato per usare elif e gestire il caso di image_file
-            # Salvataggio temporaneo dell'immagine uploadata
+            app.logger.info(f"Usando file temporaneo (absolute): {image_path}")
+        elif image_file:
             filename = image_file.filename 
             if not filename:
                  app.logger.error("Nome file immagine vuoto.")
                  return jsonify({"error": "Nome file immagine non valido."}), 400
 
-            image_path = os.path.join(os.path.dirname(__file__), 'tmp', filename)
-            # Assicurati che la directory tmp esista
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            image_path = os.path.join(TMP_FOLDER_PATH, filename) # Crea percorso assoluto
+            os.makedirs(TMP_FOLDER_PATH, exist_ok=True) # Assicura che la directory esista
             image_file.save(image_path)
-            cleanup_temp = True # Marca per pulizia
-            app.logger.info(f"File salvato come: {image_path}")
-        else: # Caso teorico, già coperto dalla validazione iniziale
+            cleanup_temp = True
+            app.logger.info(f"File salvato come (absolute): {image_path}")
+        else:
             app.logger.error("Nessuna immagine valida fornita.")
             return jsonify({"error": "Immagine valida è richiesta."}), 400
 
-        # Aggiunta immagine al soggetto esistente
         app.logger.info(f"Aggiunta immagine a CompreFace: {image_path}")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
-        # Verifica successo operazione CompreFace
         if 'image_id' not in response:
             app.logger.error(f"Risposta CompreFace non valida: {response}")
-            # Il blocco finally gestirà la pulizia
             return jsonify({"error": "Errore durante l'aggiunta dell'immagine a CompreFace."}), 500
 
         app.logger.info(f"Immagine aggiunta con successo, ID: {response.get('image_id')}")
@@ -287,16 +272,15 @@ def add_image_to_subject(subject_name):
 
     except Exception as e:
         app.logger.error(f"Errore generale durante l'aggiunta dell'immagine: {str(e)}")
-        # Il blocco finally gestirà la pulizia
         return jsonify({"error": f"Errore generale durante l'aggiunta dell'immagine: {str(e)}"}), 500
     finally:
-        if cleanup_temp and image_path and os.path.exists(image_path):
+        if cleanup_temp and image_path and os.path.exists(image_path): # image_path è assoluto
             try:
-                os.remove(image_path)
+                os.remove(image_path) # image_path è assoluto
                 app.logger.info(f"File temporaneo rimosso con successo (finally add_image_to_subject): {image_path}")
             except Exception as cleanup_error:
                 app.logger.warning(f"Errore durante la rimozione del file temporaneo (finally add_image_to_subject) {image_path}: {str(cleanup_error)}")
-        elif cleanup_temp and image_path: # Se doveva essere pulito ma non esisteva
+        elif cleanup_temp and image_path:
              app.logger.info(f"File temporaneo {image_path} non trovato per la pulizia (finally add_image_to_subject) o non previsto per la pulizia.")
 
 # Endpoint per rinominare un soggetto esistente
@@ -391,51 +375,35 @@ def delete_image(image_id):
     
 @app.route('/receive_remote_photo', methods=['POST'])
 def receive_remote_photo():
-    """Riceve foto dal servizio PoggioFace e la salva temporaneamente"""
     try:
-        data = request.get_json()
-        if not data or 'photo_data' not in data:
-            app.logger.error("Dati foto mancanti nella richiesta")
+        json_data = request.get_json()
+        if not json_data or 'photo_data' not in json_data:
+            app.logger.error("Dati foto mancanti nella richiesta JSON")
             return jsonify({"error": "Dati foto mancanti"}), 400
+
+        photo_data_b64 = json_data['photo_data']
         
-        photo_data = data['photo_data']
-        timestamp = data.get('timestamp', datetime.datetime.now().isoformat())
-        
-        app.logger.info("Foto ricevuta, inizio elaborazione...")
-        
-        # Estrai i dati base64 (rimuovi il prefisso data:image/jpeg;base64,)
-        if photo_data.startswith('data:image/jpeg;base64,'):
-            base64_data = photo_data.split(',')[1]
-        else:
-            base64_data = photo_data
-        
-        # Decodifica i dati base64
+        # Decodifica l'immagine da base64
         try:
-            image_data = base64.b64decode(base64_data)
-            app.logger.info(f"Dati base64 decodificati, dimensione: {len(image_data)} bytes")
+            # Rimuovi il prefisso 'data:image/...;base64,' se presente
+            if ',' in photo_data_b64:
+                header, encoded = photo_data_b64.split(',', 1)
+                image_data = base64.b64decode(encoded)
+            else:
+                image_data = base64.b64decode(photo_data_b64) # Se è solo la stringa base64
         except Exception as e:
             app.logger.error(f"Errore decodifica base64: {str(e)}")
-            return jsonify({"error": "Errore decodifica immagine"}), 400
+            return jsonify({"error": "Formato immagine non valido"}), 400
+
+        filename = f"remote_{uuid.uuid4().hex}.jpg"
+        temp_path = os.path.join(TMP_FOLDER_PATH, filename) # Crea percorso assoluto
+
+        os.makedirs(TMP_FOLDER_PATH, exist_ok=True) # Assicura che la directory esista
         
-        # Genera nome file unico
-        timestamp_clean = timestamp.replace(':', '-').replace('.', '-').replace('T', '_')
-        filename = f"remote_capture_{uuid.uuid4().hex[:8]}_{timestamp_clean}.jpg"
-        temp_path = os.path.join(os.path.dirname(__file__), 'tmp', filename)
-        
-        app.logger.info(f"Salvataggio file: {temp_path}")
-        
-        # Assicurati che la directory tmp esista
-        try:
-            os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-        except Exception as e:
-            app.logger.error(f"Errore creazione directory tmp: {str(e)}")
-            return jsonify({"error": "Errore creazione directory temporanea"}), 500
-        
-        # Salva il file
         try:
             with open(temp_path, 'wb') as f:
                 f.write(image_data)
-            app.logger.info(f"Foto remota salvata: {temp_path}")
+            app.logger.info(f"Foto remota salvata (absolute): {temp_path}")
         except Exception as e:
             app.logger.error(f"Errore salvataggio file: {str(e)}")
             return jsonify({"error": "Errore salvataggio file"}), 500
@@ -444,12 +412,12 @@ def receive_remote_photo():
             "status": "success",
             "message": "Foto ricevuta e salvata",
             "filename": filename,
-            "temp_path": temp_path
+            "temp_path": temp_path # Restituisce il percorso assoluto
         })
         
     except Exception as e:
         app.logger.error(f"Errore ricezione foto remota: {str(e)}")
-        return jsonify({"error": f"Errore: {str(e)}"}), 500
+        return jsonify({"error": f"Errore generico: {str(e)}"}), 500
 
 # Avvio del server Flask in modalità debug su tutte le interfacce di rete
 if __name__ == '__main__':
