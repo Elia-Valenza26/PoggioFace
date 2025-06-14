@@ -271,6 +271,57 @@ def remote_photo_data():
         return jsonify({"error": f"Errore: {str(e)}"}), 500
     
 
+@app.route('/restart_system', methods=['POST'])
+def restart_system():
+    """Riavvia completamente il sistema di riconoscimento e stream"""
+    global recognition_active
+    try:
+        app.logger.info("Riavvio completo del sistema richiesto")
+        
+        # Ferma tutto
+        recognition_active = False
+        
+        # Piccola pausa per permettere il rilascio delle risorse
+        import time
+        time.sleep(1)
+        
+        # Riavvia lo stream se non è attivo
+        if not shared_video_stream.is_running():
+            shared_video_stream.start_stream()
+            app.logger.info("Stream video riavviato")
+        
+        # Piccola pausa per stabilizzazione
+        time.sleep(0.5)
+        
+        # Riavvia il riconoscimento
+        recognition_active = True
+        app.logger.info("Sistema riavviato completamente")
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Sistema riavviato",
+            "stream_running": shared_video_stream.is_running(),
+            "recognition_active": recognition_active
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Errore riavvio sistema: {str(e)}")
+        return jsonify({"error": f"Errore: {str(e)}"}), 500
+
+@app.route('/system_status')
+def system_status():
+    """Restituisce lo stato completo del sistema"""
+    try:
+        return jsonify({
+            "stream_running": shared_video_stream.is_running(),
+            "recognition_active": recognition_active,
+            "system_healthy": shared_video_stream.is_running() and recognition_active,
+            "available_for_capture": shared_video_stream.is_running() and not recognition_active
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Punto di ingresso dell'applicazione
 if __name__ == '__main__':
     # Avvia il server Flask in modalità debug su tutte le interfacce di rete

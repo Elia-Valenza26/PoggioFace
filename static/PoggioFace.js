@@ -237,9 +237,13 @@ async function recognizeFromVideo() {
 
 let lastRequestTime = 0;  // Variabile per tenere traccia dell'ultima richiesta
 
-// Rendering del frame con la logica di pulizia delle scritte
+
+// Rendering del frame con la logica di pulizia delle scritte (MIGLIORATA)
 function renderFrame() {
-    if (!isRunning) return;
+    if (!isRunning) {
+        requestAnimationFrame(renderFrame);
+        return;
+    }
     
     // Prima ottieni e disegna il frame video
     fetch('/get_video_frame')
@@ -263,19 +267,54 @@ function renderFrame() {
                 };
                 img.src = `data:image/jpeg;base64,${frameData.frame}`;
             } else {
-                // Se non c'è frame, disegna solo gli overlay
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                drawOverlays();
+                // Se non c'è frame, mostra schermo nero con messaggio e prova restart
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Sistema in restart...', canvas.width / 2, canvas.height / 2);
+                
+                // Prova a riavviare il sistema se non l'abbiamo fatto di recente
+                if (!window.lastRestartAttempt || (Date.now() - window.lastRestartAttempt) > 5000) {
+                    window.lastRestartAttempt = Date.now();
+                    fetch('/restart_system', { method: 'POST' })
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.status === 'success') {
+                                log('Sistema riavviato automaticamente');
+                            }
+                        })
+                        .catch(error => {
+                            log('Errore riavvio automatico: ' + error.message);
+                        });
+                }
             }
         })
         .catch(error => {
-            // In caso di errore, disegna solo gli overlay
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawOverlays();
+            // Mostra errore sul canvas
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = 'red';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Errore connessione camera', canvas.width / 2, canvas.height / 2);
+            
+            // Tentativo di restart dopo errore
+            if (!window.lastRestartAttempt || (Date.now() - window.lastRestartAttempt) > 10000) {
+                window.lastRestartAttempt = Date.now();
+                fetch('/restart_system', { method: 'POST' })
+                    .catch(err => console.error('Errore restart:', err));
+            }
+        })
+        .finally(() => {
+            // Continua il loop di rendering
+            requestAnimationFrame(renderFrame);
         });
-    
-    requestAnimationFrame(renderFrame);
 }
+
 
 // Sposta la logica degli overlay in una funzione separata
 function drawOverlays() {
@@ -350,6 +389,7 @@ function drawOverlays() {
     }
 }
 
+// Gestione messaggi dal RemoteCapture (AGGIORNATA)
 window.addEventListener('message', async (event) => {
     if (event.data.type === 'stop_recognition') {
         await stopRecognition();
@@ -358,15 +398,18 @@ window.addEventListener('message', async (event) => {
     } else if (event.data.type === 'restart_system') {
         // Gestione restart completo
         try {
+            log('Ricevuto comando restart dal sistema remoto');
             const response = await fetch('/restart_system', { method: 'POST' });
             const result = await response.json();
             if (result.status === 'success') {
-                log('Sistema riavviato dopo cattura foto');
+                log('Sistema riavviato dopo cattura foto remota');
                 isRunning = true;
                 // Riavvia anche il loop di riconoscimento se necessario
                 if (!recognitionTimer) {
                     recognitionLoop();
                 }
+                // Reset flag ultimo restart
+                delete window.lastRestartAttempt;
             }
         } catch (error) {
             log('Errore riavvio sistema: ' + error.message);
