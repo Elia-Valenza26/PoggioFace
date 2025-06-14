@@ -475,17 +475,45 @@ def cleanup_old_temp_files():
     except Exception as e:
         app.logger.error(f"Errore durante la pulizia automatica: {str(e)}")
 
+def cleanup_old_temp_files():
+    """Funzione per pulire automaticamente i file temporanei più vecchi di 10 minuti"""
+    try:
+        if not os.path.exists(TMP_FOLDER_PATH):
+            return
+        
+        cutoff_time = datetime.now() - timedelta(minutes=10)  # Cambiato da hours=1 a minutes=10
+        cleaned_count = 0
+        
+        for filename in os.listdir(TMP_FOLDER_PATH):
+            file_path = os.path.join(TMP_FOLDER_PATH, filename)
+            
+            try:
+                # Controlla se il file è più vecchio di 10 minuti
+                file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                if file_time < cutoff_time:
+                    os.remove(file_path)
+                    cleaned_count += 1
+                    app.logger.info(f"File temporaneo vecchio rimosso: {file_path}")
+            except Exception as e:
+                app.logger.error(f"Errore rimozione file temporaneo vecchio {file_path}: {str(e)}")
+        
+        if cleaned_count > 0:
+            app.logger.info(f"Pulizia automatica completata: {cleaned_count} file rimossi")
+            
+    except Exception as e:
+        app.logger.error(f"Errore durante la pulizia automatica: {str(e)}")
+
 def start_cleanup_scheduler():
     """Avvia un thread per la pulizia periodica dei file temporanei"""
     def cleanup_loop():
         while True:
-            time.sleep(3600)  # Esegue ogni ora
+            time.sleep(600)  # Esegue ogni 10 minuti invece di ogni ora
             cleanup_old_temp_files()
     
     cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
     cleanup_thread.start()
-    app.logger.info("Scheduler pulizia file temporanei avviato")
-
+    app.logger.info("Scheduler pulizia file temporanei avviato (ogni 10 minuti)")
+    
 # Avvia lo scheduler quando l'app parte
 start_cleanup_scheduler()
 

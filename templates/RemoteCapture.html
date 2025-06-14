@@ -494,8 +494,13 @@
             streamStatus.innerHTML = `${icon}<small>${message}</small>`;
         }
 
+        let lastCapturedFile = null; // Traccia l'ultimo file catturato
+
         // Cattura foto dal stream remoto
         async function capturePhoto() {
+            captureBtn.disabled = true;
+            clearErrors();
+            
             try {
                 const response = await fetch('/capture_video_frame', {
                     method: 'POST'
@@ -504,8 +509,27 @@
                 const result = await response.json();
                 
                 if (response.ok && result.success) {
+                    // Se c'era una foto precedente non utilizzata, cancellala
+                    if (lastCapturedFile) {
+                        try {
+                            await fetch('/cleanup_temp_files', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    temp_files: [lastCapturedFile]
+                                })
+                            });
+                            console.log('Foto precedente non utilizzata cancellata:', lastCapturedFile);
+                        } catch (error) {
+                            console.warn('Errore cancellazione foto precedente:', error);
+                        }
+                    }
+                    
                     capturedPhotoData = result.photo_data;
                     capturedPreview.src = capturedPhotoData;
+                    lastCapturedFile = null; // Reset perché questa foto è in uso
                     
                     // Mostra anteprima
                     videoContainer.style.display = 'none';
@@ -522,6 +546,8 @@
             } catch (error) {
                 console.error('Errore cattura foto:', error);
                 showError('Errore durante la cattura: ' + error.message);
+            } finally {
+                captureBtn.disabled = false;
             }
         }
 
@@ -564,6 +590,11 @@
                 const result = await response.json();
 
                 if (response.ok) {
+                    // Traccia il file salvato per la pulizia futura se non utilizzato
+                    if (result.dashboard_response && result.dashboard_response.temp_path) {
+                        lastCapturedFile = result.dashboard_response.temp_path;
+                    }
+                    
                     sendingControls.style.display = 'none';
                     successControls.style.display = 'block';
                     
@@ -593,10 +624,16 @@
             }
         }
 
-        // Pulisci risorse quando la pagina viene chiusa (MODIFICATA)
+        // Pulisci risorse quando la pagina viene chiusa
         window.addEventListener('beforeunload', async () => {
+            // Pulisci l'ultima foto catturata se non utilizzata
+            if (lastCapturedFile) {
+                navigator.sendBeacon('/cleanup_temp_files', JSON.stringify({
+                    temp_files: [lastCapturedFile]
+                }));
+            }
+            
             stopVideoStream();
-            // Riavvia il riconoscimento se la pagina viene chiusa
             await restartRecognitionAfterCapture();
         });
 
