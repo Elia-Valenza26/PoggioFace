@@ -168,7 +168,7 @@ def add_subject():
             if not image:
                 return jsonify({"error": "Immagine è richiesta."}), 400
             
-            image_path = f"./tmp/{image.filename}"
+            image_path = os.path.join(os.path.dirname(__file__), 'tmp', image.filename)
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             image.save(image_path)
             cleanup_temp = True
@@ -240,7 +240,7 @@ def add_image_to_subject(subject_name):
                 app.logger.error("Nessuna immagine fornita")
                 return jsonify({"error": "Immagine è richiesta."}), 400
             
-            image_path = f"./tmp/{image.filename}"
+            image_path = os.path.join(os.path.dirname(__file__), 'tmp', image.filename)
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             image.save(image_path)
             cleanup_temp = True
@@ -398,7 +398,7 @@ def receive_remote_photo():
         # Genera nome file unico
         timestamp_clean = timestamp.replace(':', '-').replace('.', '-').replace('T', '_')
         filename = f"remote_capture_{uuid.uuid4().hex[:8]}_{timestamp_clean}.jpg"
-        temp_path = f"./tmp/{filename}"
+        temp_path = os.path.join(os.path.dirname(__file__), 'tmp', filename)
         
         app.logger.info(f"Salvataggio file: {temp_path}")
         
