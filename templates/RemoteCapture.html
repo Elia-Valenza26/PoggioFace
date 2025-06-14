@@ -369,20 +369,28 @@
         // Riavvia il riconoscimento dopo la cattura
         async function restartRecognitionAfterCapture() {
             try {
-                const response = await fetch('/start_recognition', {
+                console.log('Riavvio sistema completo dopo cattura...');
+                
+                // Usa il nuovo endpoint di restart completo
+                const response = await fetch('/restart_system', {
                     method: 'POST'
                 });
                 
                 if (response.ok) {
-                    // Comunica al parent window (se in iframe)
+                    const result = await response.json();
+                    console.log('Sistema riavviato:', result);
+                    
+                    // Comunica al parent window per il restart completo
                     if (window.parent !== window) {
                         window.parent.postMessage({
-                            type: 'recognition_restarted'
+                            type: 'restart_system'
                         }, '*');
                     }
+                } else {
+                    console.error('Errore riavvio sistema completo');
                 }
             } catch (error) {
-                console.error('Errore restart riconoscimento:', error);
+                console.error('Errore restart sistema completo:', error);
             }
         }
 

@@ -355,5 +355,21 @@ window.addEventListener('message', async (event) => {
         await stopRecognition();
     } else if (event.data.type === 'start_recognition') {
         await startRecognition();
+    } else if (event.data.type === 'restart_system') {
+        // Gestione restart completo
+        try {
+            const response = await fetch('/restart_system', { method: 'POST' });
+            const result = await response.json();
+            if (result.status === 'success') {
+                log('Sistema riavviato dopo cattura foto');
+                isRunning = true;
+                // Riavvia anche il loop di riconoscimento se necessario
+                if (!recognitionTimer) {
+                    recognitionLoop();
+                }
+            }
+        } catch (error) {
+            log('Errore riavvio sistema: ' + error.message);
+        }
     }
 });
