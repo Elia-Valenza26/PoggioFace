@@ -90,7 +90,7 @@ async function startCamera() {
     } catch (error) {
         log(`ERRORE: Impossibile accedere allo stream condiviso: ${error.message}`);
         console.error("Errore nell'accesso allo stream condiviso:", error);
-        alert("Impossibile accedere allo stream condiviso. Verificare la configurazione del server.");
+        alert("Impossibile accedere allo stream condiviso. Verificare la connessione della webcam");
     }
 }
 

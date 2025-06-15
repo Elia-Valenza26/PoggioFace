@@ -16,6 +16,6 @@ opencv-python==4.11.0.86
 pillow==11.2.1
 python-dotenv==1.1.0
 requests==2.32.3
-requests-toolbelt==1.0.0
+requests-toolbelt==0.9.1
 urllib3==2.4.0
 Werkzeug==3.1.3
