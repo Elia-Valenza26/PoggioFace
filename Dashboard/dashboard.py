@@ -418,6 +418,32 @@ def receive_remote_photo():
     except Exception as e:
         app.logger.error(f"Errore ricezione foto remota: {str(e)}")
         return jsonify({"error": f"Errore generico: {str(e)}"}), 500
+    
+@app.route('/cleanup_temp', methods=['POST'])
+def cleanup_temp_folder():
+    """
+    Endpoint per eliminare tutti i file nella cartella temporanea.
+    """
+    try:
+        app.logger.info(f"Avvio pulizia cartella temporanea: {TMP_FOLDER_PATH}")
+        if not os.path.isdir(TMP_FOLDER_PATH):
+            app.logger.info("La cartella temporanea non esiste, nessuna pulizia necessaria.")
+            return jsonify({"status": "success", "message": "La cartella temporanea non esiste."}), 200
+
+        for filename in os.listdir(TMP_FOLDER_PATH):
+            file_path = os.path.join(TMP_FOLDER_PATH, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                    app.logger.info(f"File temporaneo rimosso: {file_path}")
+            except Exception as e:
+                app.logger.error(f"Errore durante la rimozione del file {file_path}: {e}")
+        
+        return jsonify({"status": "success", "message": "Pulizia della cartella temporanea completata."}), 200
+    except Exception as e:
+        app.logger.error(f"Errore durante la pulizia della cartella temporanea: {e}")
+        return jsonify({"error": "Errore durante la pulizia della cartella temporanea."}), 500
+
 
 # Avvio del server Flask in modalità debug su tutte le interfacce di rete
 if __name__ == '__main__':

@@ -801,6 +801,17 @@ async function addImageToSubject() {
         document.getElementById('new-image-preview-container').classList.add('d-none');
         
         showToast(`Immagine aggiunta al soggetto "${subject}" con successo.`, 'success');
+
+        // Se l'immagine proveniva dalla webcam (tempPath esiste), avvia la pulizia dopo 10 secondi
+        if (tempPath) {
+            setTimeout(() => {
+                console.log('Avvio pulizia cartella temporanea...');
+                fetch('/cleanup_temp', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => console.log('Risultato pulizia:', data.message))
+                    .catch(err => console.error('Errore pulizia:', err));
+            }, 10000); // 10 secondi di ritardo
+        }
         
         // Aggiorna l'interfaccia dopo un breve delay
         setTimeout(async () => {
