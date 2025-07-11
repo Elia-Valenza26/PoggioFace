@@ -1,180 +1,133 @@
-# PoggioFace - Sistema di Riconoscimento Facciale
-
-Un sistema completo di ***riconoscimento facciale*** sviluppato in Python con Flask per il controllo degli accessi ad una struttura. Questo sistema è stato implementato presso il **Collegio di Merito IPE Poggiolevante**.
+# PoggioFace - Sistema di Riconoscimento Facciale per Controllo Accessi
 
 
-## 🎯 Panoramica
+PoggioFace è un sistema completo di riconoscimento facciale sviluppato in Python e Flask, progettato per il controllo degli accessi tramite riconoscimento biometrico. Utilizza **CompreFace** come motore di riconoscimento e offre una dashboard web per la gestione dei soggetti e il monitoraggio in tempo reale.
 
-PoggioFace è un sistema di riconoscimento facciale in tempo reale che utilizza **CompreFace** come motore di riconoscimento e offre:
+Il sistema è stato implementato presso il **Collegio di Merito IPE Poggiolevante** per consentire l'accesso alla struttura tramite riconoscimento facciale.
 
-- **Riconoscimento facciale in tempo reale** tramite webcam
-- **Dashboard amministrativa** completa per la gestione dei soggetti
-- **Interfaccia web responsive** ottimizzata per desktop e mobile
-- **Integrazione hardware** per controllo accessi automatizzato
-- **Configurazione flessibile** tramite variabili d'ambiente
+Per maggiori informazioni, consultare la documentazione completa [Doc.md](Doc/Doc.md) 
+
+---
 
 ## ✨ Caratteristiche Principali
 
-### 🔍 Riconoscimento
-- Riconoscimento facciale in tempo reale con soglie configurabili
-- Supporto per webcam e cattura remota
-- Plugin per rilevamento età e genere
-- Logging completo delle attività
+-   **Riconoscimento Facciale in Tempo Reale**: Cattura e analisi del flusso video da una webcam.
+-   **Dashboard Amministrativa**: Interfaccia web per la gestione completa (CRUD) dei soggetti e delle loro foto.
+-   **Cattura Foto Remota**: Aggiungi foto ai soggetti sia da file locali che scattandole in tempo reale dalla webcam del client di riconoscimento, senza interrompere il servizio.
+-   **Integrazione Hardware**: Controllo di dispositivi esterni (es. relay Shelly per apertura porte) a seguito di un riconoscimento positivo.
+-   **Configurazione Flessibile**: Gestione di tutte le impostazioni tramite un file `.env`.
+-   **Avvio Automatico**: Script per l'avvio automatico dei servizi al boot del sistema.
 
-### 👥 Gestione Soggetti
-- Dashboard web per operazioni CRUD sui soggetti
-- Caricamento immagini da file o webcam
-- Gestione multipla immagini per soggetto
-- Anteprima e validazione immagini
+---
 
-### 🔧 Integrazione
-- API RESTful per integrazione con sistemi esterni
-- Controllo hardware (es. apertura porte via Shelly)
-- Configurazione dinamica senza riavvio
+## 🚀 Getting Started
 
-## 🚀 Quick Start
+Segui questi passaggi per configurare ed eseguire il progetto in locale.
 
 ### Prerequisiti
-- Python 3.8+
-- CompreFace installato e configurato
-- Webcam compatibile
 
-### Installazione
+-   Python 3.8+
+-   Docker e Docker Compose (per eseguire [CompreFace](https://github.com/exadel-inc/CompreFace))
+-   Un'istanza di CompreFace in esecuzione.
 
-1. **Clona il repository**
+### 1. Clonare il Repository
+
 ```bash
-git clone <repository-url>
+git clone <URL_DEL_TUO_REPOSITORY>
 cd PoggioFace
 ```
 
-2. **Crea ambiente virtuale**
+### 2. Creare l'Ambiente Virtuale
+
+È consigliabile utilizzare un ambiente virtuale per isolare le dipendenze.
+
 ```bash
+# Crea l'ambiente virtuale 'pogfac'
 python -m venv pogfac
-source pogfac/bin/activate  # Linux/Mac
-# oppure
-pogfac\Scripts\activate.bat  # Windows
+
+# Attiva l'ambiente
+# Su Windows
+pogfac\Scripts\activate.bat
+# Su macOS/Linux
+source pogfac/bin/activate
 ```
 
-3. **Installa dipendenze**
+### 3. Installare le Dipendenze
+
 ```bash
 pip install -r requirements.txt
 ```
 
-4. **Configura environment**
-```bash
-cp .env.example .env
-# Modifica .env con le tue configurazioni
-```
+### 4. Configurare le Variabili d'Ambiente
 
-5. **Avvia l'applicazione**
-```bash
-# Applicazione principale (riconoscimento)
-python PoggioFace.py
+Crea un file `.env` nella directory principale del progetto e compilalo seguendo l'esempio sottostante.
 
-# Dashboard amministrativa (in terminale separato)
-cd Dashboard
-python Dashboard.py
-```
-
-### Accesso
-- **Interfaccia Riconoscimento**: http://localhost:5002
-- **Dashboard Amministrativa**: http://localhost:5000
-
-## ⚙️ Configurazione
-
-### File .env
 ```env
-# Configurazione CompreFace
+# filepath: .env
+
+# --- Configurazione CompreFace ---
+# L'indirizzo IP o il nome host dove è in esecuzione il server CompreFace
 HOST=http://localhost
+# La porta su cui CompreFace è in ascolto
 PORT=8000
+# La chiave API del servizio di riconoscimento facciale di CompreFace
 API_KEY=your_compreface_api_key
 
-# Soglie di riconoscimento
+# --- Soglie di Riconoscimento ---
+# Soglia di probabilità minima per considerare un volto rilevato (0.0 - 1.0)
 DETECTION_PROBABILITY_THRESHOLD=0.8
+# Soglia di somiglianza minima per riconoscere un soggetto (0.0 - 1.0)
 SIMILARITY_THRESHOLD=0.85
 
-# Plugin facciali
-FACE_PLUGINS=age,gender
+# --- Configurazione Hardware ---
+# L'URL completo per attivare il relay del dispositivo Shelly
+SHELLY_URL=http://your_shelly_ip/relay/0?turn=on
 
-# URL Shelly
-SHELLY_URL=http://shellyUrl
-
-# URL PoggioFace
-POGGIO_FACE_URL=http://localhost
+# --- Configurazione Servizi Locali ---
+# L'URL base dell'applicazione PoggioFace, usato dalla Dashboard per la cattura remota
+POGGIO_FACE_URL=http://localhost:5002
+# L'URL della macchina su cui viene eseguito dashboard.py, usato da PoggioFace per inviare l'immagine scattata dalla webcam
+DASHBOARD_URL=http://localhost:5000
 ```
 
-### Configurazione CompreFace
-1. Installa e avvia CompreFace
-2. Crea un servizio di riconoscimento
-3. Ottieni l'API key dal pannello CompreFace
-4. Inserisci l'API key nel file .env
+---
 
-## 📁 Struttura del Progetto
+## 🛠️ Utilizzo
+
+Il sistema è composto da due applicazioni Flask che devono essere eseguite contemporaneamente in due terminali separati (con l'ambiente virtuale attivato).
+
+**Terminale 1: Avvia il Servizio di Riconoscimento**
+
+```bash
+python PoggioFace.py
+```
+> Il servizio sarà accessibile su `http://localhost:5002`. Mostra il feed della webcam e gestisce il riconoscimento.
+
+**Terminale 2: Avvia la Dashboard Amministrativa**
+
+```bash
+cd Dashboard
+python dashboard.py
+```
+> La dashboard sarà accessibile su `http://localhost:5000`. Usala per gestire i soggetti e le loro foto.
+
+---
+
+## 📂 Struttura del Progetto
 
 ```
 PoggioFace/
-├── PoggioFace.py              # Applicazione principale
-├── requirements.txt           # Dipendenze Python
-├── .env                       # Configurazione (da creare)
-│
-├── Dashboard/                 # Dashboard amministrativa
-│   ├── Dashboard.py          # Backend dashboard
-│   ├── static/               # CSS, JS, immagini
-│   └── templates/            # Template HTML
-│
-├── static/                   # Asset applicazione principale
-├── templates/                # Template HTML riconoscimento
-├── Doc/                      # Documentazione completa
-└── tmp/                      # File temporanei
+├── .env
+├── PoggioFace.py
+├── requirements.txt
+├── start_dashboard.sh
+├── Dashboard/
+│   ├── dashboard.py
+│   ├── static/
+│   └── templates/
+├── Doc/
+│   ├── Doc.md
+│   └── Image/
+│       └── workflow.png
+└── tmp/
 ```
-
-## 🔌 API Endpoints
-
-### Dashboard Amministrativa
-- `GET /subjects` - Lista tutti i soggetti
-- `POST /subjects` - Aggiunge nuovo soggetto
-- `PUT /subjects/<name>` - Rinomina soggetto
-- `DELETE /subjects/<name>` - Elimina soggetto
-- `POST /subjects/<name>/images` - Aggiunge immagine
-- `DELETE /images/<id>` - Elimina immagine
-
-### Applicazione Principale
-- `GET /` - Interfaccia di riconoscimento
-- `POST /log` - Endpoint per logging
-- `POST /shelly_url`: Endpoint per aprire la porta
-- `GET /config` - Configurazione frontend
-- `GET /capture_remote_photo` - Cattura foto remota
-- `POST /remote_photo_data`: Riceve e processa foto catturate remotamente
-
-## 🎮 Utilizzo
-
-### Dashboard Amministrativa
-1. Accedi alla dashboard su http://localhost:5000
-2. Aggiungi nuovi soggetti con nome e foto
-3. Gestisci immagini multiple per soggetto
-4. Utilizza la webcam per catturare foto in tempo reale
-
-### Interfaccia di Riconoscimento
-1. Accedi all'interfaccia su http://localhost:5002
-2. Autorizza l'accesso alla webcam
-3. Il sistema rileverà automaticamente i volti
-4. I soggetti riconosciuti verranno evidenziati con overlay
-
-
-## 📚 Documentazione
-
-Per documentazione completa, architettura del sistema e guide avanzate, consulta:
-- [Documentazione Completa](Doc/Doc.md)
-- [Guida Installazione Dettagliata](Doc/Doc.md#installazione-e-deployment)
-- [API Reference](Doc/Doc.md#api-e-endpoints)
-
-
-## 🤝 Contributi
-
-I contributi sono benvenuti! Per contribuire:
-1. Fork del progetto
-2. Crea un branch per la feature (`git checkout -b feature/AmazingFeature`)
-3. Commit delle modifiche (`git commit -m 'Add some AmazingFeature'`)
-4. Push al branch (`git push origin feature/AmazingFeature`)
-5. Apri una Pull Request
-
