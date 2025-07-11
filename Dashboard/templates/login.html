@@ -13,7 +13,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            background: linear-gradient(135deg, #ff0000, #0000ff);
             position: relative;
             overflow: hidden;
         }
@@ -47,20 +47,24 @@
         }
         
         .login-logo {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 1rem;
-            box-shadow: 0 10px 20px rgba(67, 97, 238, 0.3);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 3px solid rgba(255, 255, 255, 0.3);
         }
         
-        .login-logo i {
-            font-size: 2rem;
-            color: white;
+        .login-logo img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            border-radius: 50%;
         }
         
         .login-title {
@@ -205,6 +209,16 @@
             .login-form {
                 padding: 1rem 1.5rem 1.5rem;
             }
+            
+            .login-logo {
+                width: 80px;
+                height: 80px;
+            }
+            
+            .login-logo img {
+                width: 60px;
+                height: 60px;
+            }
         }
     </style>
 </head>
@@ -220,7 +234,7 @@
         <div class="login-card">
             <div class="login-header">
                 <div class="login-logo">
-                    <i class="fas fa-shield-alt"></i>
+                    <img src="{{ url_for('static', filename='logoPoggiolevante.png') }}" alt="Logo Poggio Levante">
                 </div>
                 <h2 class="login-title">Dashboard PoggioFace</h2>
                 <p class="login-subtitle">Accedi per gestire il sistema di riconoscimento facciale</p>
