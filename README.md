@@ -83,6 +83,12 @@ SIMILARITY_THRESHOLD=0.85
 # L'URL completo per attivare il relay del dispositivo Shelly
 SHELLY_URL=http://your_shelly_ip/relay/0?turn=on
 
+# --- Configurazione Dashboard ---
+# La password per accedere alla dashboard
+DASHBOARD_PASSWORD=your_secure_password
+# Una chiave segreta per la gestione delle sessioni Flask. Generare con: python -c 'import os; print(os.urandom(24).hex())'
+SECRET_KEY=your_flask_secret_key
+
 # --- Configurazione Servizi Locali ---
 # L'URL base dell'applicazione PoggioFace, usato dalla Dashboard per la cattura remota
 POGGIO_FACE_URL=http://localhost:5002

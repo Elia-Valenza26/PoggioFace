@@ -1,15 +1,17 @@
 # PoggioFace - Sistema di Riconoscimento Facciale
 
 ## Indice
-1. [Panoramica del Progetto](#panoramica-del-progetto)
-2. [Architettura del Sistema](#architettura-del-sistema)
-3. [Struttura dei File](#struttura-dei-file)
-4. [Configurazione e Setup](#configurazione-e-setup)
-5. [Componenti Principali](#componenti-principali)
-6. [Dashboard Amministrativa](#dashboard-amministrativa)
-7. [API e Endpoints](#api-e-endpoints)
-8. [Integrazione Hardware (Shelly)](#integrazione-hardware-shelly)
-9. [Troubleshooting](#troubleshooting)
+1. [Panoramica del Progetto](#1-panoramica-del-progetto)
+2. [Architettura del Sistema](#2-architettura-del-sistema)
+3. [Struttura dei File](#3-struttura-dei-file)
+4. [Configurazione e Setup](#4-configurazione-e-setup)
+5. [Componenti Principali](#5-componenti-principali)
+6. [Dashboard Amministrativa](#6-dashboard-amministrativa)
+7. [API e Endpoints](#7-api-e-endpoints)
+8. [Integrazione Hardware (Shelly)](#8-integrazione-hardware-shelly)
+9. [Troubleshooting](#9-troubleshooting)
+10. [Avvio Automatico](#10-avvio-automatico)
+11. [Autenticazione e Sicurezza](#11-autenticazione-e-sicurezza)
 
 ---
 
@@ -121,6 +123,12 @@ FACE_PLUGINS=age,gender
 # L'URL completo per attivare il relay del dispositivo Shelly
 SHELLY_URL=http://your_shelly_ip/relay/0?turn=on
 
+# --- Credenziali Dashboard ---
+# La password per accedere alla dashboard amministrativa.
+DASHBOARD_PASSWORD=your_secure_password
+# Una chiave segreta per la gestione delle sessioni Flask. Può essere generata con: python -c 'import os; print(os.urandom(24).hex())'
+SECRET_KEY=your_flask_secret_key
+
 # --- Configurazione Servizi Locali ---
 # L'URL base dell'applicazione PoggioFace, usato dalla Dashboard per la cattura remota
 POGGIO_FACE_URL=http://localhost:5002
@@ -156,10 +164,10 @@ Questo è il cuore del sistema di riconoscimento.
 - **Endpoint**: Espone endpoint per la configurazione (`/config`), il logging (`/log`) e l'attivazione dello Shelly (`/shelly_url`).
 
 ### Dashboard Amministrativa (`Dashboard/dashboard.py`)
-Questo servizio fornisce un'interfaccia web completa per la gestione dei dati di riconoscimento.
+Questo servizio fornisce un'interfaccia web completa per la gestione dei dati di riconoscimento. L'accesso è protetto da una password configurabile.
 - **Funzionalità**: Permette di aggiungere, visualizzare, rinominare ed eliminare soggetti. Consente anche di gestire le immagini associate a ciascun soggetto.
-- **Interfaccia**: La dashboard è accessibile su `http://localhost:5000`.
-- **Endpoint**: Espone un'API RESTful per tutte le operazioni CRUD sui soggetti e sulle immagini.
+- **Interfaccia**: La dashboard è accessibile su `http://localhost:5000`. All'accesso verrà presentata una pagina di login.
+- **Endpoint**: Espone un'API RESTful per tutte le operazioni CRUD sui soggetti e sulle immagini. La maggior parte degli endpoint richiede l'autenticazione.
 
 ---
 
@@ -185,6 +193,9 @@ Una delle funzionalità più potenti della dashboard è la possibilità di aggiu
 ### Endpoints Dashboard (`http://localhost:5000`)
 | Metodo | Endpoint                      | Descrizione                               |
 |--------|-------------------------------|-------------------------------------------|
+| `GET`  | `/login`                      | Mostra la pagina di login.                |
+| `POST` | `/login`                      | Gestisce il tentativo di login.           |
+| `GET`  | `/logout`                     | Esegue il logout dell'utente.             |
 | `GET`  | `/`                           | Mostra la pagina principale della dashboard. |
 | `GET`  | `/subjects`                   | Lista tutti i soggetti e le loro immagini. |
 | `POST` | `/subjects`                   | Aggiunge un nuovo soggetto.               |
@@ -218,7 +229,9 @@ La configurazione avviene tramite la variabile `SHELLY_URL` nel file `.env`. È 
 SHELLY_URL=http://192.168.1.100/relay/0?turn=on
 ```
 
-*(In questa sezione puoi aggiungere immagini e dettagli specifici sul modello di Shelly utilizzato e su come ottenere l'URL corretto.)*
+Se si vuole modificare la **configurazione dello shelly**, è necessario da broswer accedere alla sua dashboard cercando il suo indirizzo IP nella barra di ricerca.
+Successivamente basta accedere alla sezione in foto:
+![fotoDashboardShelly](Image\shellyDashboard.png)
 
 ---
 
@@ -251,3 +264,20 @@ Sulla macchina che ospita la dashboard, lo script [`start_dashboard.sh`](start_d
 
 ### Servizio di Riconoscimento (PoggioFace)
 Sul Raspberry Pi che gestisce il riconoscimento facciale, è presente uno script `startup_poggio.sh` (nella cartella `poggio-face`). Questo script viene eseguito al boot del sistema operativo e avvia l'applicazione [`PoggioFace.py`](PoggioFace.py), rendendo il sistema di riconoscimento immediatamente operativo senza necessità di intervento manuale.
+
+---
+
+## 11. Autenticazione e Sicurezza
+
+L'accesso alla **Dashboard Amministrativa** è protetto per garantire che solo gli utenti autorizzati possano gestire i soggetti e le configurazioni.
+
+### Pagina di Login
+Quando si tenta di accedere all'URL della dashboard (`http://localhost:5000`), si viene reindirizzati a una pagina di login. È necessario inserire la password configurata per poter procedere.
+
+### Configurazione Credenziali
+La sicurezza della dashboard si basa su due variabili d'ambiente che devono essere definite nel file `.env`:
+
+-   `DASHBOARD_PASSWORD`: Imposta la password per l'accesso.
+-   `SECRET_KEY`: Una chiave crittografica utilizzata da Flask per firmare in modo sicuro i cookie di sessione. È fondamentale che sia un valore lungo, casuale e segreto.
+
+Se queste variabili non sono impostate, l'applicazione non si avvierà correttamente.
