@@ -1,4 +1,4 @@
-from flask import Flask, Response, request, jsonify, render_template
+from flask import Flask, Response, request, jsonify, render_template, session, redirect, url_for, flash
 from dotenv import load_dotenv
 import logging
 import os
@@ -7,6 +7,8 @@ import datetime
 import requests
 import uuid
 import base64
+import hashlib
+from functools import wraps
 from compreface import CompreFace
 from compreface.collections import FaceCollection
 from compreface.service import RecognitionService
@@ -18,6 +20,10 @@ DOMAIN: str = os.getenv('HOST', 'http://localhost')
 PORT: str = os.getenv('PORT', '8000')
 API_KEY: str = os.getenv('API_KEY')
 DETECTION_PROBABILITY_THRESHOLD: float = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD', 0.8))
+
+# Configurazione delle credenziali per la dashboard
+DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 TMP_FOLDER_PATH = os.path.join(APP_ROOT, 'tmp')
@@ -39,6 +45,30 @@ subjects: Subjects = recognition.get_subjects()
 
 # Inizializzazione applicazione Flask
 app = Flask(__name__)
+app.secret_key = SECRET_KEY
+
+# Funzione per hashare la password
+def hash_password(password):
+    """Genera un hash SHA-256 della password"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Funzione per verificare la password
+def verify_password(password, hashed):
+    """Verifica se la password corrisponde all'hash"""
+    return hash_password(password) == hashed
+
+# Hash della password di configurazione (generato una sola volta all'avvio)
+HASHED_PASSWORD = hash_password(DASHBOARD_PASSWORD)
+
+# Decorator per richiedere il login
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 # Funzione per retry con numero fisso di tentativi
 def retry(func, retries=3, delay=2):
@@ -105,6 +135,38 @@ def refresh_compre_face_connection():
     face_collection = recognition.get_face_collection()
     subjects = recognition.get_subjects()
 
+# Route per il login
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        
+        if password and verify_password(password, HASHED_PASSWORD):
+            session['logged_in'] = True
+            session['login_time'] = datetime.datetime.now().isoformat()
+            app.logger.info("Login effettuato con successo")
+            return redirect(url_for('index'))
+        else:
+            app.logger.warning("Tentativo di login fallito")
+            flash('Password non corretta', 'danger')
+    
+    return render_template('login.html')
+
+
+# Endpoint principale per servire la dashboard HTML
+@app.route('/')
+@login_required
+def index():
+    compreface_base_url = f"{DOMAIN}:{PORT}"
+    return render_template('dashboard.html', compreface_base_url=compreface_base_url)
+
+# Route per il logout
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Logout effettuato con successo', 'success')
+    return redirect(url_for('login'))
+
 # Endpoint per ottenere la configurazione dell'URL del servizio di riconoscimento facciale
 @app.route('/config')
 def get_config():
@@ -112,8 +174,10 @@ def get_config():
         'poggio_face_url': os.getenv('POGGIO_FACE_URL', 'http://localhost:5002')
     })
 
+
 # Endpoint proxy per servire immagini dal server CompreFace
 @app.route('/proxy/images/<uuid:image_id>')
+@login_required
 def proxy_image(image_id):
     try:
         url = f"{DOMAIN}:{PORT}/api/v1/recognition/faces/{image_id}/img"
@@ -129,14 +193,10 @@ def proxy_image(image_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Endpoint principale per servire la dashboard HTML
-@app.route('/')
-def index():
-    compreface_base_url = f"{DOMAIN}:{PORT}"
-    return render_template('dashboard.html', compreface_base_url=compreface_base_url)
 
 # Endpoint per ottenere la lista di tutti i soggetti con le loro immagini associate
 @app.route('/subjects', methods=['GET'])
+@login_required
 def list_subjects():
     try:
         all_faces = retry(safe_list_faces, retries=3, delay=1)
@@ -152,6 +212,7 @@ def list_subjects():
 
 # Endpoint per aggiungere un nuovo soggetto con la sua prima immagine
 @app.route('/subjects', methods=['POST'])
+@login_required
 def add_subject():
     image_path = None
     cleanup_temp = False
@@ -220,6 +281,7 @@ def add_subject():
 
 # Endpoint per aggiungere un'immagine aggiuntiva a un soggetto esistente
 @app.route('/subjects/<string:subject_name>/images', methods=['POST'])
+@login_required
 def add_image_to_subject(subject_name):
     image_path = None
     cleanup_temp = False
@@ -285,6 +347,7 @@ def add_image_to_subject(subject_name):
 
 # Endpoint per rinominare un soggetto esistente
 @app.route('/subjects/<string:old_subject_name>', methods=['PUT'])
+@login_required
 def rename_subject(old_subject_name):
     try:
         data = request.get_json()
@@ -313,6 +376,7 @@ def rename_subject(old_subject_name):
 
 # Endpoint per eliminare completamente un soggetto e tutte le sue immagini
 @app.route('/subjects/<string:subject_name>', methods=['DELETE'])
+@login_required
 def delete_subject(subject_name):
     try:
         logging.info(f"Inizio eliminazione del soggetto: {subject_name}")
@@ -339,6 +403,7 @@ def delete_subject(subject_name):
 
 # Endpoint per eliminare una singola immagine tramite ID
 @app.route('/images/<string:image_id>', methods=['DELETE'])
+@login_required
 def delete_image(image_id):
     try:
         # Recupero informazioni sull'immagine e conteggio immagini per soggetto
@@ -374,6 +439,7 @@ def delete_image(image_id):
         return jsonify({"error": str(e)}), 500
     
 @app.route('/receive_remote_photo', methods=['POST'])
+@login_required
 def receive_remote_photo():
     try:
         json_data = request.get_json()
@@ -420,6 +486,7 @@ def receive_remote_photo():
         return jsonify({"error": f"Errore generico: {str(e)}"}), 500
     
 @app.route('/cleanup_temp', methods=['POST'])
+@login_required
 def cleanup_temp_folder():
     """
     Endpoint per eliminare tutti i file nella cartella temporanea.

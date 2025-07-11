@@ -17,15 +17,19 @@
 
     <div class="container py-4">
         <!-- Header con logo a sinistra, titolo al centro e logo a destra -->
-        <div class="header-container">
+         <div class="header-container">
             <div class="logo">
                 <img src="{{ url_for('static', filename='logoPoggiolevante.png') }}" alt="Logo Poggio">
             </div>
             <h1 class="page-title">Dashboard PoggioFace</h1>
-            <div class="logo">
-                <img src="{{ url_for('static', filename='logoPoggiolevante.png') }}" alt="Logo Poggio">
+            <div class="d-flex align-items-center gap-3">
+                <div class="logo">
+                    <img src="{{ url_for('static', filename='logoPoggiolevante.png') }}" alt="Logo Poggio">
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm">
+                    <i class="fas fa-sign-out-alt me-1"></i> Logout
+                </a>
             </div>
-                   
         </div>
         
         <div class="row g-4">
