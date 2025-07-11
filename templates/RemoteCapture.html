@@ -65,10 +65,44 @@
             min-height: 0;
         }
 
-        #webcam-video, #captured-preview {
+        .video-section {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #video-stream, #captured-preview {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            border-radius: 0;
+        }
+
+        .stream-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            z-index: 10;
+        }
+
+        .stream-status.success {
+            background: rgba(74, 222, 128, 0.8);
+        }
+
+        .stream-status.error {
+            background: rgba(248, 113, 113, 0.8);
+        }
+
+        .stream-status.loading {
+            background: rgba(67, 97, 238, 0.8);
         }
 
         .controls-section {
@@ -97,6 +131,12 @@
         .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #6c757d;
+            transform: none;
+            box-shadow: none;
         }
 
         .btn-success {
@@ -143,6 +183,23 @@
             font-size: 1rem;
             color: var(--primary-color);
             font-weight: 500;
+        }
+
+        .webcam-unavailable {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .webcam-unavailable .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.7;
         }
 
         /* Responsive adjustments */
@@ -194,40 +251,57 @@
             <h2><i class="fas fa-camera me-2"></i>Cattura Foto Remota</h2>
         </div>
         
-        <!-- Area video principale - occupa tutto lo spazio disponibile -->
+        <!-- Area video principale -->
         <div class="video-area">
-            <div id="video-container" class="w-100 h-100">
-                <video id="webcam-video" autoplay muted playsinline></video>
-                <canvas id="webcam-canvas" style="display: none;"></canvas>
+            <!-- Video container for remote stream -->
+            <div id="video-container" class="video-section">
+                <img id="video-stream" 
+                     style="transform: scaleX(-1);" 
+                     alt="Stream webcam remota">
+                <div class="stream-status loading" id="stream-status">
+                    <i class="fas fa-circle-notch fa-spin me-1"></i>
+                    <small>Avvio stream...</small>
+                </div>
             </div>
             
-            <div id="preview-container" class="w-100 h-100" style="display: none;">
-                <img id="captured-preview" alt="Foto catturata">
+            <!-- Preview container -->
+            <div id="preview-container" class="video-section" style="display: none;">
+                <img id="captured-preview" 
+                     style="transform: scaleX(-1);" 
+                     alt="Foto catturata">
+            </div>
+
+            <!-- Webcam unavailable message -->
+            <div id="webcam-unavailable" class="webcam-unavailable" style="display: none;">
+                <div class="icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h4>Webcam Non Disponibile</h4>
+                <p>La webcam è attualmente utilizzata dal sistema di riconoscimento facciale.</p>
+                <p>Interrompi il riconoscimento per utilizzare la cattura foto.</p>
             </div>
         </div>
         
-        <!-- Controlli essenziali -->
+        <!-- Controlli -->
         <div class="controls-section">
             <div id="capture-controls">
-                <button id="capture-btn" class="btn btn-primary">
+                <button type="button" class="btn btn-primary" id="capture-btn" disabled>
                     <i class="fas fa-camera me-2"></i>Scatta Foto
                 </button>
             </div>
             
             <div id="preview-controls" style="display: none;">
-                <button id="retake-btn" class="btn btn-warning">
-                    <i class="fas fa-redo me-2"></i>Riprova
+                <button type="button" class="btn btn-warning me-2" id="retake-btn">
+                    <i class="fas fa-redo me-1"></i>Riprova
                 </button>
-                <button id="send-btn" class="btn btn-success">
-                    <i class="fas fa-check me-2"></i>Invia
+                <button type="button" class="btn btn-success" id="send-btn">
+                    <i class="fas fa-check me-1"></i>Conferma
                 </button>
             </div>
             
             <div id="sending-controls" style="display: none;">
                 <div class="d-flex align-items-center justify-content-center">
-                    <div class="spinner-border me-2" role="status">
-                        <span class="visually-hidden">Invio in corso...</span>
-                    </div>
+                    <div class="spinner-border text-primary me-3" role="status"></div>
                     <span class="status-message">Invio in corso...</span>
                 </div>
             </div>
@@ -243,76 +317,226 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let webcamStream = null;
+        let streamInterval = null;
         let capturedPhotoData = null;
+        let streamActive = false;
 
         // Elementi DOM
-        const video = document.getElementById('webcam-video');
-        const canvas = document.getElementById('webcam-canvas');
-        const preview = document.getElementById('captured-preview');
+        const videoStream = document.getElementById('video-stream');
+        const capturedPreview = document.getElementById('captured-preview');
         const videoContainer = document.getElementById('video-container');
         const previewContainer = document.getElementById('preview-container');
+        const webcamUnavailable = document.getElementById('webcam-unavailable');
         const captureControls = document.getElementById('capture-controls');
         const previewControls = document.getElementById('preview-controls');
         const sendingControls = document.getElementById('sending-controls');
         const successControls = document.getElementById('success-controls');
+        const streamStatus = document.getElementById('stream-status');
+        const captureBtn = document.getElementById('capture-btn');
 
-        // Inizializza webcam
-        async function initWebcam() {
+        // Verifica stato webcam
+        async function checkWebcamStatus() {
             try {
-                webcamStream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: "user"
-                    }
-                });
-                video.srcObject = webcamStream;
-                
-                video.addEventListener('loadedmetadata', () => {
-                    console.log('Webcam inizializzata correttamente');
-                });
-                
+                const response = await fetch('/webcam_status');
+                const status = await response.json();
+                return status;
             } catch (error) {
-                console.error('Errore accesso webcam:', error);
-                showError('Impossibile accedere alla webcam: ' + error.message);
+                console.error('Errore verifica stato webcam:', error);
+                return { stream_running: false, recognition_active: false, available_for_capture: false };
             }
         }
 
-        // Cattura foto
-        function capturePhoto() {
+        // Ferma il riconoscimento quando inizia la cattura
+        async function stopRecognitionForCapture() {
             try {
-                const context = canvas.getContext('2d');
-                canvas.width = video.videoWidth || 1280;
-                canvas.height = video.videoHeight || 720;
+                const response = await fetch('/stop_recognition', {
+                    method: 'POST'
+                });
                 
-                // Disegna il frame corrente
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                if (response.ok) {
+                    // Comunica al parent window (se in iframe)
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'recognition_stopped'
+                        }, '*');
+                    }
+                }
+            } catch (error) {
+                console.error('Errore stop riconoscimento:', error);
+            }
+        }
+
+        // Riavvia il riconoscimento dopo la cattura
+        async function restartRecognitionAfterCapture() {
+            try {
+                console.log('Riavvio sistema completo dopo cattura...');
                 
-                // Ottieni i dati dell'immagine con qualità alta
-                capturedPhotoData = canvas.toDataURL('image/jpeg', 0.9);
-                preview.src = capturedPhotoData;
+                // Usa il nuovo endpoint di restart completo
+                const response = await fetch('/restart_system', {
+                    method: 'POST'
+                });
                 
-                // Mostra anteprima
-                videoContainer.style.display = 'none';
-                previewContainer.style.display = 'block';
-                captureControls.style.display = 'none';
-                previewControls.style.display = 'block';
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Sistema riavviato:', result);
+                    
+                    // Comunica al parent window per il restart completo
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'restart_system'
+                        }, '*');
+                    }
+                } else {
+                    console.error('Errore riavvio sistema completo');
+                }
+            } catch (error) {
+                console.error('Errore restart sistema completo:', error);
+            }
+        }
+
+        // Avvia lo streaming video
+         async function startVideoStream() {
+            try {
+                // Verifica se la webcam è disponibile
+                const webcamStatus = await checkWebcamStatus();
+                
+                if (webcamStatus.recognition_active) {
+                    // Ferma il riconoscimento per permettere la cattura
+                    await stopRecognitionForCapture();
+                    // Piccola pausa per permettere al sistema di fermarsi
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                updateStreamStatus('loading', 'Avvio stream...');
+                
+                // Avvia lo stream sul server (se non già attivo)
+                if (!webcamStatus.stream_running) {
+                    const startResponse = await fetch('/start_video_stream', {
+                        method: 'POST'
+                    });
+                    
+                    if (!startResponse.ok) {
+                        const error = await startResponse.json();
+                        throw new Error(error.error || 'Impossibile avviare lo stream');
+                    }
+                }
+                
+                updateStreamStatus('success', 'Stream attivo');
+                streamActive = true;
+                captureBtn.disabled = false;
+                
+                // Inizia a ricevere i frame
+                streamInterval = setInterval(async () => {
+                    if (!streamActive) return;
+                    
+                    try {
+                        const frameResponse = await fetch('/get_video_frame');
+                        const frameData = await frameResponse.json();
+                        
+                        if (frameData.frame) {
+                            videoStream.src = `data:image/jpeg;base64,${frameData.frame}`;
+                        }
+                    } catch (error) {
+                        console.error('Errore ricezione frame:', error);
+                    }
+                }, 100); // 10 FPS
+                
+            } catch (error) {
+                console.error('Errore avvio stream:', error);
+                updateStreamStatus('error', 'Errore stream');
+                showError('Errore avvio stream: ' + error.message);
+            }
+        }
+
+        // Ferma lo streaming video
+        async function stopVideoStream() {
+            streamActive = false;
+            
+            if (streamInterval) {
+                clearInterval(streamInterval);
+                streamInterval = null;
+            }
+            
+            try {
+                await fetch('/stop_video_stream', {
+                    method: 'POST'
+                });
+            } catch (error) {
+                console.error('Errore stop stream:', error);
+            }
+        }
+
+        // Mostra messaggio webcam non disponibile
+        function showWebcamUnavailable() {
+            videoContainer.style.display = 'none';
+            webcamUnavailable.style.display = 'flex';
+            updateStreamStatus('error', 'Non disponibile');
+            captureBtn.disabled = true;
+        }
+
+        // Aggiorna stato stream
+        function updateStreamStatus(type, message) {
+            streamStatus.className = `stream-status ${type}`;
+            
+            let icon = '';
+            switch(type) {
+                case 'loading':
+                    icon = '<i class="fas fa-circle-notch fa-spin me-1"></i>';
+                    break;
+                case 'success':
+                    icon = '<i class="fas fa-check-circle me-1"></i>';
+                    break;
+                case 'error':
+                    icon = '<i class="fas fa-exclamation-triangle me-1"></i>';
+                    break;
+            }
+            
+            streamStatus.innerHTML = `${icon}<small>${message}</small>`;
+        }
+
+        // Cattura foto dal stream remoto
+        async function capturePhoto() {
+            try {
+                const response = await fetch('/capture_video_frame', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    capturedPhotoData = result.photo_data;
+                    capturedPreview.src = capturedPhotoData;
+                    
+                    // Mostra anteprima
+                    videoContainer.style.display = 'none';
+                    previewContainer.style.display = 'block';
+                    captureControls.style.display = 'none';
+                    previewControls.style.display = 'block';
+                    
+                    // Ferma lo stream temporaneamente
+                    stopVideoStream();
+                } else {
+                    throw new Error(result.error || 'Errore durante la cattura');
+                }
                 
             } catch (error) {
                 console.error('Errore cattura foto:', error);
-                showError('Errore durante la cattura della foto: ' + error.message);
+                showError('Errore durante la cattura: ' + error.message);
             }
         }
 
         // Riprova foto
-        function retakePhoto() {
+        async function retakePhoto() {
             videoContainer.style.display = 'block';
             previewContainer.style.display = 'none';
+            webcamUnavailable.style.display = 'none';
             captureControls.style.display = 'block';
             previewControls.style.display = 'none';
             capturedPhotoData = null;
             clearErrors();
+            
+            // Riavvia lo stream
+            await startVideoStream();
         }
 
         // Invia foto al backend
@@ -350,6 +574,12 @@
                             data: capturedPhotoData
                         }, '*');
                     }
+
+                    // Riavvia il riconoscimento dopo 2 secondi
+                    setTimeout(async () => {
+                        await restartRecognitionAfterCapture();
+                    }, 2000);
+                    
                 } else {
                     throw new Error(result.error || 'Errore durante l\'invio');
                 }
@@ -363,6 +593,13 @@
             }
         }
 
+        // Pulisci risorse quando la pagina viene chiusa (MODIFICATA)
+        window.addEventListener('beforeunload', async () => {
+            stopVideoStream();
+            // Riavvia il riconoscimento se la pagina viene chiusa
+            await restartRecognitionAfterCapture();
+        });
+
         // Mostra errore
         function showError(message) {
             clearErrors();
@@ -373,7 +610,6 @@
             const controlsSection = document.querySelector('.controls-section');
             controlsSection.appendChild(errorDiv);
             
-            // Rimuovi l'errore dopo 5 secondi
             setTimeout(() => {
                 if (errorDiv.parentNode) {
                     errorDiv.remove();
@@ -393,18 +629,14 @@
         document.getElementById('send-btn').addEventListener('click', sendPhoto);
 
         // Inizializza quando la pagina è caricata
-        window.addEventListener('DOMContentLoaded', initWebcam);
+        window.addEventListener('DOMContentLoaded', startVideoStream);
 
         // Pulisci risorse quando la pagina viene chiusa
-        window.addEventListener('beforeunload', () => {
-            if (webcamStream) {
-                webcamStream.getTracks().forEach(track => track.stop());
-            }
-        });
+        window.addEventListener('beforeunload', stopVideoStream);
 
-        // Gestione tasti keyboard per usabilità
+        // Gestione tasti keyboard
         document.addEventListener('keydown', (event) => {
-            if (event.code === 'Space' && captureControls.style.display !== 'none') {
+            if (event.code === 'Space' && captureControls.style.display !== 'none' && !captureBtn.disabled) {
                 event.preventDefault();
                 capturePhoto();
             } else if (event.code === 'Enter' && previewControls.style.display !== 'none') {
@@ -415,6 +647,17 @@
                 retakePhoto();
             }
         });
+
+        // Retry automatico in caso di errori di connessione
+        setInterval(async () => {
+            if (!streamActive && videoContainer.style.display !== 'none' && webcamUnavailable.style.display === 'none') {
+                const webcamStatus = await checkWebcamStatus();
+                if (webcamStatus.available) {
+                    console.log('Webcam disponibile, tentativo riconnessione...');
+                    startVideoStream();
+                }
+            }
+        }, 5000); // Controlla ogni 5 secondi
     </script>
 </body>
 </html>
