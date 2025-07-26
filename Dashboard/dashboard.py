@@ -443,8 +443,10 @@ def delete_image(image_id):
 def receive_remote_photo():
     try:
         # Aggiungi logging per debug
+        app.logger.info(f"=== RICEVUTA RICHIESTA FOTO REMOTA DA POGGIOFACE ===")
         app.logger.info(f"Ricevuta richiesta foto remota - Content-Type: {request.content_type}")
         app.logger.info(f"Headers: {dict(request.headers)}")
+        app.logger.info(f"Remote IP: {request.remote_addr}")
         
         json_data = request.get_json()
         if not json_data or 'photo_data' not in json_data:
@@ -452,6 +454,7 @@ def receive_remote_photo():
             return jsonify({"error": "Dati foto mancanti"}), 400
 
         photo_data_b64 = json_data['photo_data']
+        app.logger.info(f"Dimensione dati foto ricevuti: {len(photo_data_b64)} caratteri")
         
         # Decodifica l'immagine da base64
         try:
@@ -486,7 +489,9 @@ def receive_remote_photo():
             "temp_path": temp_path
         }
         
+        app.logger.info(f"=== FOTO SALVATA CON SUCCESSO ===")
         app.logger.info(f"Risposta inviata: {response_data}")
+        app.logger.info(f"=== FINE ELABORAZIONE FOTO REMOTA ===")
         return jsonify(response_data)
         
     except Exception as e:

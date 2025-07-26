@@ -30,6 +30,14 @@ face_plugins = os.getenv('FACE_PLUGINS')
 shelly_url = os.getenv('SHELLY_URL')
 dashboard_url = os.getenv('DASHBOARD_URL')
 
+# Log delle configurazioni per debug
+app.logger.info(f"=== CONFIGURAZIONE POGGIOFACE ===")
+app.logger.info(f"Host: {host}")
+app.logger.info(f"Port: {port}")
+app.logger.info(f"Dashboard URL: {dashboard_url}")
+app.logger.info(f"API Key: {api_key[:10]}..." if api_key else "API Key: Non configurata")
+app.logger.info(f"=== FINE CONFIGURAZIONE ===")
+
 # Abilita CORS per tutte le rotte dell'applicazione
 CORS(app)
 
@@ -222,67 +230,76 @@ def capture_remote_photo():
 def remote_photo_data():
     """Riceve e processa foto catturate remotamente dalla dashboard"""
     try:
+        app.logger.info(f"=== RICEVUTA RICHIESTA FOTO REMOTA ===")
+        app.logger.info(f"Dashboard URL configurata: {dashboard_url}")
+        
         data = request.get_json()
         if not data or 'photo_data' not in data:
+            app.logger.error("Dati foto mancanti nella richiesta")
             return jsonify({"error": "Dati foto mancanti"}), 400
         
         photo_data = data['photo_data']
         app.logger.info("Foto ricevuta dalla dashboard per il processing")
         
+        # Verifica che dashboard_url sia configurato
+        if not dashboard_url:
+            app.logger.error("DASHBOARD_URL non configurato nel file .env")
+            return jsonify({"error": "URL Dashboard non configurato"}), 500
+        
         # Invia la foto alla Dashboard per il salvataggio
-        if dashboard_url:
-            try:
-                # Aggiungi headers per specificare il content-type
-                headers = {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
+        try:
+            # Aggiungi headers per specificare il content-type
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+            
+            endpoint_url = f"{dashboard_url}/receive_remote_photo"
+            app.logger.info(f"Invio foto alla Dashboard: {endpoint_url}")
+            
+            dashboard_response = requests.post(
+                endpoint_url,
+                json={
+                    "photo_data": photo_data,
+                    "timestamp": datetime.datetime.now().isoformat()
+                },
+                headers=headers,
+                timeout=30
+            )
+            
+            # Debug: stampa la risposta raw per diagnostica
+            app.logger.info(f"Dashboard response status: {dashboard_response.status_code}")
+            app.logger.info(f"Dashboard response headers: {dict(dashboard_response.headers)}")
+            app.logger.info(f"Dashboard response text: {dashboard_response.text[:500]}...")  # Prime 500 caratteri
+            
+            if dashboard_response.ok:
+                try:
+                    dashboard_result = dashboard_response.json()
+                    app.logger.info(f"Foto inviata alla Dashboard: {dashboard_result}")
+                    return jsonify({
+                        "status": "success", 
+                        "message": "Foto ricevuta e inviata alla Dashboard",
+                        "dashboard_response": dashboard_result
+                    })
+                except ValueError as json_error:
+                    app.logger.error(f"Errore parsing JSON dalla Dashboard: {json_error}")
+                    app.logger.error(f"Risposta Dashboard non-JSON: {dashboard_response.text}")
+                    return jsonify({"error": "Risposta Dashboard non valida"}), 502
+            else:
+                app.logger.error(f"Errore invio foto alla Dashboard: {dashboard_response.status_code}")
+                app.logger.error(f"Risposta Dashboard: {dashboard_response.text}")
+                return jsonify({"error": f"Errore Dashboard: {dashboard_response.status_code}"}), 502
                 
-                dashboard_response = requests.post(
-                    f"{dashboard_url}/receive_remote_photo",
-                    json={
-                        "photo_data": photo_data,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    },
-                    headers=headers,
-                    timeout=30
-                )
-                
-                # Debug: stampa la risposta raw per diagnostica
-                app.logger.info(f"Dashboard response status: {dashboard_response.status_code}")
-                app.logger.info(f"Dashboard response headers: {dict(dashboard_response.headers)}")
-                app.logger.info(f"Dashboard response text: {dashboard_response.text[:500]}...")  # Prime 500 caratteri
-                
-                if dashboard_response.ok:
-                    try:
-                        dashboard_result = dashboard_response.json()
-                        app.logger.info(f"Foto inviata alla Dashboard: {dashboard_result}")
-                        return jsonify({
-                            "status": "success", 
-                            "message": "Foto ricevuta e inviata alla Dashboard",
-                            "dashboard_response": dashboard_result
-                        })
-                    except ValueError as json_error:
-                        app.logger.error(f"Errore parsing JSON dalla Dashboard: {json_error}")
-                        app.logger.error(f"Risposta Dashboard non-JSON: {dashboard_response.text}")
-                        return jsonify({"error": "Risposta Dashboard non valida"}), 502
-                else:
-                    app.logger.error(f"Errore invio foto alla Dashboard: {dashboard_response.status_code}")
-                    app.logger.error(f"Risposta Dashboard: {dashboard_response.text}")
-                    return jsonify({"error": f"Errore Dashboard: {dashboard_response.status_code}"}), 502
-                    
-            except requests.exceptions.Timeout:
-                app.logger.error("Timeout nell'invio foto alla Dashboard")
-                return jsonify({"error": "Timeout Dashboard"}), 504
-            except requests.exceptions.ConnectionError:
-                app.logger.error("Errore di connessione alla Dashboard")
-                return jsonify({"error": "Dashboard non raggiungibile"}), 503
-            except Exception as e:
-                app.logger.error(f"Errore generico invio Dashboard: {str(e)}")
-                return jsonify({"error": f"Errore Dashboard: {str(e)}"}), 500
-        else:
-            app.logger.warning("URL Dashboard non configurato")
-            return jsonify({"error": "URL Dashboard non configurato"}), 400
+        except requests.exceptions.Timeout:
+            app.logger.error("Timeout nell'invio foto alla Dashboard")
+            return jsonify({"error": "Timeout Dashboard"}), 504
+        except requests.exceptions.ConnectionError as conn_err:
+            app.logger.error(f"Errore di connessione alla Dashboard: {str(conn_err)}")
+            app.logger.error(f"URL tentato: {dashboard_url}/receive_remote_photo")
+            return jsonify({"error": "Dashboard non raggiungibile"}), 503
+        except Exception as e:
+            app.logger.error(f"Errore generico invio Dashboard: {str(e)}")
+            return jsonify({"error": f"Errore Dashboard: {str(e)}"}), 500
         
     except Exception as e:
         app.logger.error(f"Errore processing foto remota: {str(e)}")
