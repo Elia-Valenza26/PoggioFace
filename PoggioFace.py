@@ -16,8 +16,22 @@ load_dotenv()
 # Crea l'app Flask
 app = Flask(__name__)
 
-# Configura il logging per stampare nel terminale
+# Configurazione logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+
+# Filtro personalizzato per ridurre il rumore dei log per get_video_frame
+class VideoFrameLogFilter(logging.Filter):
+    def filter(self, record):
+        # Nasconde i log delle richieste GET a get_video_frame
+        if hasattr(record, 'getMessage'):
+            message = record.getMessage()
+            if 'GET /get_video_frame' in message:
+                return False
+        return True
+
+# Applica il filtro al logger di werkzeug
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.addFilter(VideoFrameLogFilter())
 
 # Rileva le variabili di configurazione dal file .env
 api_key = os.getenv('API_KEY')

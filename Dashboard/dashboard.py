@@ -439,7 +439,6 @@ def delete_image(image_id):
         return jsonify({"error": str(e)}), 500
     
 @app.route('/receive_remote_photo', methods=['POST'])
-@login_required
 def receive_remote_photo():
     try:
         # Aggiungi logging per debug
