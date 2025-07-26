@@ -442,6 +442,10 @@ def delete_image(image_id):
 @login_required
 def receive_remote_photo():
     try:
+        # Aggiungi logging per debug
+        app.logger.info(f"Ricevuta richiesta foto remota - Content-Type: {request.content_type}")
+        app.logger.info(f"Headers: {dict(request.headers)}")
+        
         json_data = request.get_json()
         if not json_data or 'photo_data' not in json_data:
             app.logger.error("Dati foto mancanti nella richiesta JSON")
@@ -456,30 +460,34 @@ def receive_remote_photo():
                 header, encoded = photo_data_b64.split(',', 1)
                 image_data = base64.b64decode(encoded)
             else:
-                image_data = base64.b64decode(photo_data_b64) # Se è solo la stringa base64
+                image_data = base64.b64decode(photo_data_b64)
         except Exception as e:
             app.logger.error(f"Errore decodifica base64: {str(e)}")
             return jsonify({"error": "Formato immagine non valido"}), 400
 
+        # Genera nome file univoco e percorso assoluto
         filename = f"remote_{uuid.uuid4().hex}.jpg"
-        temp_path = os.path.join(TMP_FOLDER_PATH, filename) # Crea percorso assoluto
+        temp_path = os.path.join(TMP_FOLDER_PATH, filename)
 
-        os.makedirs(TMP_FOLDER_PATH, exist_ok=True) # Assicura che la directory esista
+        os.makedirs(TMP_FOLDER_PATH, exist_ok=True)
         
         try:
             with open(temp_path, 'wb') as f:
                 f.write(image_data)
-            app.logger.info(f"Foto remota salvata (absolute): {temp_path}")
+            app.logger.info(f"Foto remota salvata: {temp_path}")
         except Exception as e:
             app.logger.error(f"Errore salvataggio file: {str(e)}")
             return jsonify({"error": "Errore salvataggio file"}), 500
         
-        return jsonify({
+        response_data = {
             "status": "success",
             "message": "Foto ricevuta e salvata",
             "filename": filename,
-            "temp_path": temp_path # Restituisce il percorso assoluto
-        })
+            "temp_path": temp_path
+        }
+        
+        app.logger.info(f"Risposta inviata: {response_data}")
+        return jsonify(response_data)
         
     except Exception as e:
         app.logger.error(f"Errore ricezione foto remota: {str(e)}")
