@@ -15,10 +15,11 @@ Questo documento descrive la migrazione completa del sistema di riconoscimento f
 2. [Architettura del Sistema](#architettura-del-sistema)
 3. [File Creati](#file-creati)
 4. [File Modificati](#file-modificati)
-5. [Configurazione](#configurazione)
+5. [Configurazione Centralizzata](#configurazione-centralizzata)
 6. [Deployment in Produzione](#deployment-in-produzione)
 7. [Guida Multi-Macchina](#guida-multi-macchina)
 8. [Troubleshooting](#troubleshooting)
+9. [Appendice: Struttura File Finale](#appendice-struttura-file-finale)
 
 ---
 
@@ -139,56 +140,125 @@ Versione ottimizzata per CPU senza supporto GPU.
 ### 4. `insightface_service/docker-compose.yml`
 
 ```yaml
-version: '3.8'
-
 services:
-  insightface:
+  insightface-api:
     build:
       context: .
       dockerfile: Dockerfile.cpu
+    container_name: insightface-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistenza embeddings e database
+      - ./data:/app/data
+      # Cache modelli InsightFace (evita download ripetuti)
+      - insightface_models:/root/.insightface
+    # Legge le variabili dal file .env principale (centralizzato)
+    env_file:
+      - ../.env
+    environment:
+      # Modello da usare (buffalo_l, buffalo_m, buffalo_s, buffalo_sc)
+      - MODEL_NAME=buffalo_l
+      # Dimensione detection (più alto = più preciso ma più lento)
+      - DET_SIZE=640
+    restart: unless-stopped
+    # Decommentare per supporto GPU NVIDIA
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Versione CPU-only (alternativa)
+  insightface-api-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    container_name: insightface-api-cpu
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - insightface_models:/root/.insightface
+    env_file:
+      - ../.env
     environment:
-      - SIMILARITY_THRESHOLD=0.4
+      - MODEL_NAME=buffalo_l
+      - DET_SIZE=640
     restart: unless-stopped
+    profiles:
+      - cpu  # Attiva con: docker-compose --profile cpu up
+
+volumes:
+  insightface_models:
+    name: insightface_models_cache
 ```
+
+> **Nota:** Il container legge le soglie dal file `.env` nella root del progetto tramite `env_file: ../.env`
 
 ### 5. `insightface_service/requirements.txt`
 
 ```
 fastapi==0.115.6
-uvicorn==0.34.0
+uvicorn[standard]==0.34.0
 python-multipart==0.0.20
 insightface==0.7.3
-onnxruntime==1.20.1
-numpy>=1.24.0
+onnxruntime-gpu==1.20.1
 opencv-python-headless==4.10.0.84
-pillow>=10.0.0
+numpy==1.26.4
+pillow==11.0.0
+pydantic==2.10.3
 ```
 
-### 6. `.env.example`
+> **Nota:** Per sistemi senza GPU, sostituire `onnxruntime-gpu` con `onnxruntime`
 
-Template configurazione ambiente:
+### 6. `.env` (Configurazione Centralizzata)
+
+Il file `.env` nella root del progetto è **l'unica fonte di configurazione** per tutti i componenti:
+- **PoggioFace** (client)
+- **Dashboard** (server)
+- **InsightFace Docker** (motore riconoscimento)
 
 ```env
-# Configurazione Server InsightFace
+# ============================================
+# CONFIGURAZIONE CENTRALIZZATA POGGIOFACE
+# ============================================
+# Questo file è letto da: PoggioFace, Dashboard, InsightFace Docker
+# ============================================
+
+# API InsightFace
 API_KEY=your-api-key-here
-HOST=http://10.10.10.95
+HOST=http://localhost
 PORT=8000
 
-# Soglie di riconoscimento
-DETECTION_PROBABILITY_THRESHOLD=0.8
-SIMILARITY_THRESHOLD=0.4
+# Soglie di riconoscimento (0.0 - 1.0)
+# SIMILARITY_THRESHOLD: soglia per considerare un match valido (più alto = più restrittivo)
+# DETECTION_THRESHOLD: soglia minima di probabilità per considerare un volto rilevato valido
+SIMILARITY_THRESHOLD=0.5
+DETECTION_THRESHOLD=0.5
+
+# Plugin per analisi aggiuntive (age, gender)
+FACE_PLUGINS=age,gender
 
 # URL dei servizi
-POGGIO_FACE_URL=http://10.10.11.22:5002
-SHELLY_URL=http://10.10.11.19/relay/0?turn=on
-DASHBOARD_URL=http://10.10.10.95:5000
+POGGIO_FACE_URL=http://localhost:5002
+DASHBOARD_URL=http://localhost:5000
+
+# Dispositivo Shelly (lasciare vuoto se non usato)
+SHELLY_URL=
+
+# Credenziali Dashboard
 DASHBOARD_PASSWORD=your-password
 SECRET_KEY=your-secret-key
 ```
+
+> **⚠️ IMPORTANTE:** Dopo aver modificato `SIMILARITY_THRESHOLD` o `DETECTION_THRESHOLD`, è necessario riavviare il container Docker:
+> ```bash
+> cd insightface_service
+> docker-compose down && docker-compose up -d
+> ```
 
 ---
 
@@ -229,44 +299,70 @@ class InsightFaceClient:
 **Rimosso:**
 - `compreface-sdk` - non più necessario
 
-### 3. `.env`
+### 3. `insightface_service/app.py`
 
-**Modifica:**
-```diff
-- SIMILARITY_THRESHOLD=0.85
-+ SIMILARITY_THRESHOLD=0.4
+**Modifica:** Configurazione centralizzata dal file `.env`:
+```python
+# Configurazione da environment (legge dal .env centralizzato)
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
+DETECTION_THRESHOLD = float(os.getenv("DETECTION_THRESHOLD", "0.5"))
 ```
-
-> **Nota importante:** InsightFace usa cosine similarity (0-1) dove 1 = identico.
-> CompreFace usava una scala diversa, quindi la soglia è stata ridotta da 0.85 a 0.4.
 
 ---
 
-## Configurazione
+## Configurazione Centralizzata
+
+### Architettura Configurazione
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         .env                                 │
+│              (root del progetto PoggioFace)                 │
+│                                                              │
+│  SIMILARITY_THRESHOLD=0.5                                   │
+│  DETECTION_THRESHOLD=0.5                                    │
+│  ...                                                         │
+└─────────────────────────────────────────────────────────────┘
+                           │
+          ┌────────────────┼────────────────┐
+          ▼                ▼                ▼
+   ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+   │ PoggioFace   │ │  Dashboard   │ │   Docker     │
+   │  (Flask)     │ │   (Flask)    │ │ InsightFace  │
+   │              │ │              │ │              │
+   │ load_dotenv()│ │ load_dotenv()│ │ env_file:    │
+   │              │ │              │ │   ../.env    │
+   └──────────────┘ └──────────────┘ └──────────────┘
+```
 
 ### Variabili d'Ambiente
 
-| Variabile | Descrizione | Valore Default | Note |
-|-----------|-------------|----------------|------|
-| `HOST` | URL server InsightFace | `http://localhost` | IP macchina server |
-| `PORT` | Porta servizio | `8000` | Porta container Docker |
-| `API_KEY` | Chiave autenticazione | - | Opzionale |
-| `SIMILARITY_THRESHOLD` | Soglia riconoscimento | `0.4` | Range 0-1, più alto = più restrittivo |
-| `DETECTION_PROBABILITY_THRESHOLD` | Soglia detection | `0.8` | Range 0-1 |
-| `DASHBOARD_URL` | URL Dashboard | `http://localhost:5000` | Per comunicazione inter-servizio |
-| `POGGIO_FACE_URL` | URL PoggioFace | `http://localhost:5002` | URL client |
-| `SHELLY_URL` | URL relay Shelly | - | Per apertura porta |
+| Variabile | Descrizione | Valore Default | Usato da |
+|-----------|-------------|----------------|----------|
+| `HOST` | URL server InsightFace | `http://localhost` | PoggioFace, Dashboard |
+| `PORT` | Porta servizio | `8000` | PoggioFace, Dashboard |
+| `API_KEY` | Chiave autenticazione | - | Tutti |
+| `SIMILARITY_THRESHOLD` | Soglia riconoscimento | `0.5` | **Tutti** (centralizzato) |
+| `DETECTION_THRESHOLD` | Soglia detection volti | `0.5` | **Tutti** (centralizzato) |
+| `FACE_PLUGINS` | Plugin aggiuntivi | `age,gender` | PoggioFace |
+| `DASHBOARD_URL` | URL Dashboard | `http://localhost:5000` | PoggioFace |
+| `POGGIO_FACE_URL` | URL PoggioFace | `http://localhost:5002` | Dashboard |
+| `SHELLY_URL` | URL relay Shelly | - | PoggioFace |
 
 ### Tuning Soglia Similarity
 
-La soglia è configurata nel file `docker-compose.yml`:
+La soglia è configurata nel file `.env` centralizzato (variabile `SIMILARITY_THRESHOLD`):
 
 | Valore | Comportamento |
 |--------|---------------|
 | 0.4 | Permissivo (più falsi positivi) |
-| 0.5 | Bilanciato |
-| 0.6 | Restrittivo (raccomandato per produzione) |
+| 0.5 | Bilanciato (raccomandato) |
+| 0.6 | Restrittivo |
 | 0.7+ | Molto restrittivo (più falsi negativi) |
+
+> **⚠️ Dopo ogni modifica della soglia:**
+> 1. Riavviare il container Docker: `docker-compose down && docker-compose up -d`
+> 2. Riavviare PoggioFace e Dashboard per ricaricare la configurazione
 
 ---
 
@@ -348,17 +444,26 @@ curl http://10.10.11.22:5002/
 
 ## Guida Multi-Macchina
 
-### Configurazione di Rete
+### Configurazione Centralizzata
+
+Il file `.env` nella root del progetto contiene **tutta la configurazione**. Ogni macchina ha il proprio `.env` con gli stessi parametri ma valori appropriati per il contesto.
 
 **Macchina Server (A) - IP: 10.10.10.95**
 
-File `.env` per Dashboard:
+File `.env` (letto da Dashboard e Docker InsightFace):
 ```env
+# ============================================
+# CONFIGURAZIONE CENTRALIZZATA - SERVER
+# ============================================
 API_KEY=your-secure-api-key
 HOST=http://localhost
 PORT=8000
-SIMILARITY_THRESHOLD=0.4
-DETECTION_PROBABILITY_THRESHOLD=0.8
+
+# Soglie (unica fonte di verità)
+SIMILARITY_THRESHOLD=0.5
+DETECTION_THRESHOLD=0.5
+
+FACE_PLUGINS=age,gender
 POGGIO_FACE_URL=http://10.10.11.22:5002
 DASHBOARD_URL=http://10.10.10.95:5000
 DASHBOARD_PASSWORD=your-password
@@ -367,16 +472,25 @@ SECRET_KEY=your-secret-key
 
 **Macchina Client (B) - IP: 10.10.11.22**
 
-File `.env` per PoggioFace:
+File `.env` (letto da PoggioFace):
 ```env
+# ============================================
+# CONFIGURAZIONE CENTRALIZZATA - CLIENT
+# ============================================
 API_KEY=your-secure-api-key
 HOST=http://10.10.10.95
 PORT=8000
-SIMILARITY_THRESHOLD=0.4
-DETECTION_PROBABILITY_THRESHOLD=0.8
+
+# Soglie (devono corrispondere al server)
+SIMILARITY_THRESHOLD=0.5
+DETECTION_THRESHOLD=0.5
+
+FACE_PLUGINS=age,gender
 SHELLY_URL=http://10.10.11.19/relay/0?turn=on
 DASHBOARD_URL=http://10.10.10.95:5000
 ```
+
+> **⚠️ IMPORTANTE:** Le soglie devono essere identiche su server e client. Se modificate sul server, aggiornare anche il client e riavviare tutti i servizi.
 
 ### Firewall
 
@@ -425,11 +539,24 @@ python PoggioFace.py
 
 ### Problema: Volti rilevati ma nomi non visualizzati
 
-**Causa:** Soglia similarity troppo alta  
-**Soluzione:** Ridurre `SIMILARITY_THRESHOLD` nel file `.env`
-```env
-SIMILARITY_THRESHOLD=0.4
+**Causa:** Soglia similarity troppo alta o non allineata tra componenti  
+**Soluzione:** 
+1. Ridurre `SIMILARITY_THRESHOLD` nel file `.env`:
+   ```env
+   SIMILARITY_THRESHOLD=0.5
+   ```
+2. Riavviare il container Docker:
+   ```bash
+   cd insightface_service
+   docker-compose down && docker-compose up -d
+   ```
+3. Riavviare PoggioFace e Dashboard
+
+**Verifica log Docker per diagnostica:**
+```bash
+docker logs insightface-api --tail 50
 ```
+I log mostreranno il punteggio di similarità per ogni riconoscimento.
 
 ### Problema: Container Docker non si avvia
 
@@ -440,6 +567,15 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     build-essential \
     g++
+```
+
+### Problema: Modifiche alle soglie non hanno effetto
+
+**Causa:** Container Docker usa le vecchie variabili  
+**Soluzione:** Il container legge le variabili all'avvio. Dopo ogni modifica al `.env`:
+```bash
+cd insightface_service
+docker-compose down && docker-compose up -d
 ```
 
 ### Problema: Connessione rifiutata tra macchine
@@ -462,7 +598,7 @@ RUN apt-get update && apt-get install -y \
 
 **InsightFace Service:**
 ```bash
-docker logs -f insightface_service-insightface-1
+docker logs -f insightface-api
 ```
 
 **Dashboard:**
@@ -527,5 +663,6 @@ Per problemi o domande relative a questa migrazione, fare riferimento alla docum
 ---
 
 *Documento generato automaticamente durante la migrazione CompreFace → InsightFace*  
-*Versione: 1.0*  
-*Data: 15 Dicembre 2025*
+*Versione: 1.1*  
+*Data: 15 Dicembre 2025*  
+*Ultimo aggiornamento: Configurazione centralizzata `.env` e unificazione soglie*

@@ -100,42 +100,49 @@ pip install -r requirements.txt
 ### 3. File di Configurazione `.env`
 Crea un file `.env` nella root del progetto. Questo file conterrà tutte le variabili di configurazione necessarie per il funzionamento del sistema.
 
-```env
-# --- Configurazione CompreFace ---
-# L'indirizzo IP o il nome host dove è in esecuzione il server CompreFace
-HOST=http://localhost
-# La porta su cui CompreFace è in ascolto
-PORT=8000
-# La chiave API del servizio di riconoscimento facciale di CompreFace
-API_KEY=your_compreface_api_key
+> **Nota:** Il file `.env` è l'unica fonte di configurazione ed è letto da tutti i componenti: PoggioFace, Dashboard e InsightFace Docker.
 
-# --- Soglie di Riconoscimento ---
-# La soglia di probabilità minima per considerare un volto rilevato (0.0 - 1.0)
-DETECTION_PROBABILITY_THRESHOLD=0.8
-# La soglia di somiglianza minima per riconoscere un soggetto (0.0 - 1.0)
-SIMILARITY_THRESHOLD=0.85
+```env
+# ============================================
+# CONFIGURAZIONE CENTRALIZZATA POGGIOFACE
+# ============================================
+
+# --- Configurazione InsightFace ---
+# L'indirizzo IP o il nome host dove è in esecuzione il server InsightFace
+HOST=http://localhost
+# La porta su cui InsightFace è in ascolto
+PORT=8000
+# La chiave API (opzionale - per retrocompatibilità)
+API_KEY=your_api_key
+
+# --- Soglie di Riconoscimento (0.0 - 1.0) ---
+# Soglia minima di somiglianza per riconoscere un soggetto (più alto = più restrittivo)
+SIMILARITY_THRESHOLD=0.5
+# Soglia minima di probabilità per considerare un volto rilevato
+DETECTION_THRESHOLD=0.5
 
 # --- Plugin Facciali (opzionale) ---
-# Plugin aggiuntivi di CompreFace da utilizzare (es. age, gender, landmarks)
+# Plugin aggiuntivi da utilizzare (es. age, gender)
 FACE_PLUGINS=age,gender
 
 # --- Configurazione Hardware ---
-# L'URL completo per attivare il relay del dispositivo Shelly
-SHELLY_URL=http://your_shelly_ip/relay/0?turn=on
+# L'URL completo per attivare il relay del dispositivo Shelly (lasciare vuoto se non usato)
+SHELLY_URL=
 
 # --- Credenziali Dashboard ---
 # La password per accedere alla dashboard amministrativa.
 DASHBOARD_PASSWORD=your_secure_password
-# Una chiave segreta per la gestione delle sessioni Flask. Può essere generata con: python -c 'import os; print(os.urandom(24).hex())'
+# Una chiave segreta per la gestione delle sessioni Flask
 SECRET_KEY=your_flask_secret_key
 
 # --- Configurazione Servizi Locali ---
-# L'URL base dell'applicazione PoggioFace, usato dalla Dashboard per la cattura remota
+# L'URL base dell'applicazione PoggioFace
 POGGIO_FACE_URL=http://localhost:5002
-
-# L'URL della macchina su cui viene eseguito dashboard.py, usato da PoggioFace per inviare l'immagine scattata dalla webcam
+# L'URL della Dashboard
 DASHBOARD_URL=http://localhost:5000
 ```
+
+> ⚠️ **IMPORTANTE:** Dopo aver modificato `SIMILARITY_THRESHOLD` o `DETECTION_THRESHOLD`, riavviare il container Docker (`docker-compose down && docker-compose up -d`) e i servizi Python.
 
 ### 4. Avvio delle Applicazioni
 Il sistema è composto da due servizi che devono essere eseguiti in due terminali separati (con l'ambiente virtuale `pogfac` attivo in entrambi).

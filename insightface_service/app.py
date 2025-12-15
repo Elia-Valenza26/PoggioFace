@@ -46,8 +46,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("InsightFaceAPI")
 
-# Configurazione da environment
-SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.4"))
+# Configurazione da environment (legge dal .env centralizzato)
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
 DETECTION_THRESHOLD = float(os.getenv("DETECTION_THRESHOLD", "0.5"))
 MODEL_NAME = os.getenv("MODEL_NAME", "buffalo_l")
 DET_SIZE = int(os.getenv("DET_SIZE", "640"))
@@ -391,13 +391,27 @@ async def recognize_face(
             
             # Trova i match migliori
             matches = []
+            best_similarity = 0.0
+            best_subject = None
             for stored in all_embeddings:
                 similarity = cosine_similarity(face.embedding, stored["embedding"])
+                # Teniamo traccia del migliore per logging
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_subject = stored["subject"]
                 if similarity >= SIMILARITY_THRESHOLD:
                     matches.append({
                         "subject": stored["subject"],
                         "similarity": round(similarity, 5)
                     })
+            
+            # Log del miglior match trovato (anche se sotto soglia)
+            if best_subject:
+                logger.info(f"Miglior match: {best_subject} con similarità {best_similarity:.4f} (soglia: {SIMILARITY_THRESHOLD})")
+                if best_similarity < SIMILARITY_THRESHOLD:
+                    logger.info(f"  -> Match SCARTATO (sotto soglia)")
+                else:
+                    logger.info(f"  -> Match ACCETTATO")
             
             # Ordina per similarità decrescente
             matches.sort(key=lambda x: x["similarity"], reverse=True)

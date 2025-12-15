@@ -15,7 +15,7 @@ load_dotenv()
 DOMAIN: str = os.getenv('HOST', 'http://localhost')
 PORT: str = os.getenv('PORT', '8000')
 API_KEY: str = os.getenv('API_KEY')
-DETECTION_PROBABILITY_THRESHOLD: float = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD', 0.8))
+DETECTION_THRESHOLD: float = float(os.getenv('DETECTION_THRESHOLD', '0.5'))
 
 # Configurazione delle credenziali per la dashboard
 DASHBOARD_PASSWORD = os.getenv('DASHBOARD_PASSWORD')
@@ -116,7 +116,7 @@ insightface_client = InsightFaceClient(
     domain=DOMAIN,
     port=PORT,
     api_key=API_KEY,
-    det_prob_threshold=DETECTION_PROBABILITY_THRESHOLD
+    det_prob_threshold=DETECTION_THRESHOLD
 )
 
 # Inizializzazione applicazione Flask
@@ -217,7 +217,7 @@ def refresh_insightface_connection():
         domain=DOMAIN,
         port=PORT,
         api_key=API_KEY,
-        det_prob_threshold=DETECTION_PROBABILITY_THRESHOLD
+        det_prob_threshold=DETECTION_THRESHOLD
     )
 
 # Alias per retrocompatibilità

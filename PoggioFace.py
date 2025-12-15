@@ -37,7 +37,7 @@ werkzeug_logger.addFilter(VideoFrameLogFilter())
 api_key = os.getenv('API_KEY')
 host = os.getenv('HOST')
 port = os.getenv('PORT')
-detection_prob_threshold = float(os.getenv('DETECTION_PROBABILITY_THRESHOLD'))
+detection_threshold = float(os.getenv('DETECTION_THRESHOLD', '0.5'))
 similarity_threshold = float(os.getenv('SIMILARITY_THRESHOLD'))
 face_plugins = os.getenv('FACE_PLUGINS')
 
@@ -69,7 +69,7 @@ def home():
         'apiKey': api_key,
         'host': host,
         'port': port,
-        'detProbThreshold': detection_prob_threshold,
+        'detProbThreshold': detection_threshold,
         'similarityThreshold': similarity_threshold,
         'facePlugins': face_plugins,
         'shellyUrl': shelly_url
@@ -105,7 +105,7 @@ def get_config():
         'apiKey': api_key,
         'host': host,
         'port': port,
-        'detProbThreshold': detection_prob_threshold,
+        'detProbThreshold': detection_threshold,
         'similarityThreshold': similarity_threshold,
         'facePlugins': face_plugins
     })

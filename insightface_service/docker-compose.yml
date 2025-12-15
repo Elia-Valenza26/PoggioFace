@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   insightface-api:
     build:
@@ -13,12 +11,10 @@ services:
       - ./data:/app/data
       # Cache modelli InsightFace (evita download ripetuti)
       - insightface_models:/root/.insightface
+    # Legge le variabili dal file .env principale (centralizzato)
+    env_file:
+      - ../.env
     environment:
-      # Soglia di similarità per il riconoscimento (0.0 - 1.0)
-      # Più alto = più restrittivo (0.6 raccomandato per produzione)
-      - SIMILARITY_THRESHOLD=0.6
-      # Soglia probabilità detection (0.0 - 1.0)
-      - DETECTION_THRESHOLD=0.5
       # Modello da usare (buffalo_l, buffalo_m, buffalo_s, buffalo_sc)
       - MODEL_NAME=buffalo_l
       # Dimensione detection (più alto = più preciso ma più lento)
@@ -44,9 +40,10 @@ services:
     volumes:
       - ./data:/app/data
       - insightface_models:/root/.insightface
+    # Legge le variabili dal file .env principale (centralizzato)
+    env_file:
+      - ../.env
     environment:
-      - SIMILARITY_THRESHOLD=0.4
-      - DETECTION_THRESHOLD=0.5
       - MODEL_NAME=buffalo_l
       - DET_SIZE=640
     restart: unless-stopped
