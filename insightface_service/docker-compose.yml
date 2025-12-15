@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  insightface-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    container_name: insightface-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistenza embeddings e database
+      - ./data:/app/data
+      # Cache modelli InsightFace (evita download ripetuti)
+      - insightface_models:/root/.insightface
+    environment:
+      # Soglia di similarità per il riconoscimento (0.0 - 1.0)
+      # Più alto = più restrittivo (0.6 raccomandato per produzione)
+      - SIMILARITY_THRESHOLD=0.6
+      # Soglia probabilità detection (0.0 - 1.0)
+      - DETECTION_THRESHOLD=0.5
+      # Modello da usare (buffalo_l, buffalo_m, buffalo_s, buffalo_sc)
+      - MODEL_NAME=buffalo_l
+      # Dimensione detection (più alto = più preciso ma più lento)
+      - DET_SIZE=640
+    restart: unless-stopped
+    # Decommentare per supporto GPU NVIDIA
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Versione CPU-only (alternativa)
+  insightface-api-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    container_name: insightface-api-cpu
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - insightface_models:/root/.insightface
+    environment:
+      - SIMILARITY_THRESHOLD=0.4
+      - DETECTION_THRESHOLD=0.5
+      - MODEL_NAME=buffalo_l
+      - DET_SIZE=640
+    restart: unless-stopped
+    profiles:
+      - cpu  # Attiva con: docker-compose --profile cpu up
+
+volumes:
+  insightface_models:
+    name: insightface_models_cache

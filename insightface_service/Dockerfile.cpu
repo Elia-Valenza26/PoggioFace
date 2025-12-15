@@ -1,0 +1,41 @@
+# InsightFace API Service - CPU Only Version
+FROM python:3.11-slim
+
+# Installa dipendenze sistema per OpenCV, InsightFace e build tools
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    wget \
+    build-essential \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copia requirements
+COPY requirements.txt .
+
+# Installa dipendenze con onnxruntime CPU invece di GPU
+RUN pip install --no-cache-dir fastapi==0.115.6 uvicorn[standard]==0.34.0 \
+    python-multipart==0.0.20 insightface==0.7.3 onnxruntime==1.20.1 \
+    opencv-python-headless==4.10.0.84 numpy==1.26.4 pillow==11.0.0 pydantic==2.10.3
+
+# Crea directory per dati persistenti
+RUN mkdir -p /app/data /app/models
+
+# Copia il codice dell'applicazione
+COPY app.py .
+
+# Esponi porta API
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+
+# Avvia l'applicazione
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -9,10 +9,6 @@ import uuid
 import base64
 import hashlib
 from functools import wraps
-from compreface import CompreFace
-from compreface.collections import FaceCollection
-from compreface.service import RecognitionService
-from compreface.collections.face_collections import Subjects
 
 # Caricamento variabili d'ambiente e configurazione
 load_dotenv()
@@ -29,19 +25,99 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 TMP_FOLDER_PATH = os.path.join(APP_ROOT, 'tmp')
 os.makedirs(TMP_FOLDER_PATH, exist_ok=True)
 
-
 # Configurazione logging
 logging.basicConfig(level=logging.INFO)
 
-# Inizializzazione connessione CompreFace con soglia di probabilità di rilevamento
-compre_face: CompreFace = CompreFace(domain=DOMAIN, port=PORT, options={
-    "detection_probability_threshold": DETECTION_PROBABILITY_THRESHOLD
-})
+# ============================================
+# CLIENT HTTP PER INSIGHTFACE API
+# ============================================
 
-# Inizializzazione servizi CompreFace per riconoscimento facciale
-recognition: RecognitionService = compre_face.init_face_recognition(API_KEY)
-face_collection: FaceCollection = recognition.get_face_collection()
-subjects: Subjects = recognition.get_subjects()
+class InsightFaceClient:
+    """
+    Client HTTP per comunicare con InsightFace API Service.
+    Sostituisce il SDK CompreFace con chiamate HTTP dirette.
+    """
+    
+    def __init__(self, domain: str, port: str, api_key: str, det_prob_threshold: float = 0.8):
+        self.base_url = f"{domain}:{port}"
+        self.api_key = api_key
+        self.det_prob_threshold = det_prob_threshold
+        self.headers = {"x-api-key": api_key}
+    
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> dict:
+        """Esegue una richiesta HTTP al servizio InsightFace"""
+        url = f"{self.base_url}{endpoint}"
+        kwargs.setdefault('headers', {}).update(self.headers)
+        kwargs.setdefault('timeout', 30)
+        
+        response = requests.request(method, url, **kwargs)
+        response.raise_for_status()
+        return response.json()
+    
+    # === SUBJECTS API ===
+    
+    def list_subjects(self) -> dict:
+        """Lista tutti i soggetti"""
+        return self._make_request('GET', '/api/v1/recognition/subjects')
+    
+    def add_subject(self, subject_name: str) -> dict:
+        """Aggiunge un nuovo soggetto"""
+        return self._make_request('POST', '/api/v1/recognition/subjects', 
+                                  json={"subject": subject_name})
+    
+    def delete_subject(self, subject_name: str) -> dict:
+        """Elimina un soggetto"""
+        return self._make_request('DELETE', f'/api/v1/recognition/subjects/{subject_name}')
+    
+    def rename_subject(self, old_name: str, new_name: str) -> dict:
+        """Rinomina un soggetto"""
+        return self._make_request('PUT', f'/api/v1/recognition/subjects/{old_name}',
+                                  json={"subject": new_name})
+    
+    # === FACES API ===
+    
+    def list_faces(self, subject: str = None) -> dict:
+        """Lista tutti i volti, opzionalmente filtrati per soggetto"""
+        params = {}
+        if subject:
+            params['subject'] = subject
+        return self._make_request('GET', '/api/v1/recognition/faces', params=params)
+    
+    def add_face(self, image_path: str, subject: str) -> dict:
+        """Aggiunge un volto a un soggetto"""
+        with open(image_path, 'rb') as f:
+            files = {'file': (os.path.basename(image_path), f, 'image/jpeg')}
+            data = {'subject': subject}
+            url = f"{self.base_url}/api/v1/recognition/faces"
+            response = requests.post(url, files=files, data=data, 
+                                    headers=self.headers, timeout=30)
+            response.raise_for_status()
+            return response.json()
+    
+    def delete_face(self, image_id: str) -> dict:
+        """Elimina un singolo volto"""
+        return self._make_request('DELETE', f'/api/v1/recognition/faces/{image_id}')
+    
+    def delete_all_faces(self, subject: str) -> dict:
+        """Elimina tutti i volti di un soggetto"""
+        return self._make_request('DELETE', '/api/v1/recognition/faces', 
+                                  params={'subject': subject})
+    
+    def get_face_image(self, image_id: str) -> bytes:
+        """Ottiene l'immagine di un volto"""
+        url = f"{self.base_url}/api/v1/recognition/faces/{image_id}/img"
+        response = requests.get(url, headers=self.headers, timeout=30)
+        response.raise_for_status()
+        return response.content
+
+
+# Inizializzazione client InsightFace
+insightface_client = InsightFaceClient(
+    domain=DOMAIN,
+    port=PORT,
+    api_key=API_KEY,
+    det_prob_threshold=DETECTION_PROBABILITY_THRESHOLD
+)
 
 # Inizializzazione applicazione Flask
 app = Flask(__name__)
@@ -103,37 +179,49 @@ def retry_with_backoff(func, retries=10, initial_delay=1, max_delay=10, backoff_
 
     raise last_exception or Exception("Tutti i tentativi falliti")
 
-# Wrapper sicuri per le operazioni CompreFace - evitano eccezioni non gestite
+# ============================================
+# WRAPPER SICURI PER INSIGHTFACE API
+# ============================================
+
 def safe_list_faces():
     """Wrapper sicuro per listare tutte le facce nella collezione."""
-    return face_collection.list()
+    return insightface_client.list_faces()
 
 def safe_add_subject(subject_name):
     """Wrapper sicuro per aggiungere un nuovo soggetto."""
-    return subjects.add(subject_name)
+    return insightface_client.add_subject(subject_name)
 
 def safe_add_image(image_path, subject_name):
     """Wrapper sicuro per aggiungere un'immagine a un soggetto."""
-    return face_collection.add(image_path=image_path, subject=subject_name)
+    return insightface_client.add_face(image_path, subject_name)
 
 def safe_delete_all_subject_faces(subject_name):
     """Wrapper sicuro per eliminare tutte le immagini di un soggetto."""
-    return face_collection.delete_all(subject=subject_name)
+    return insightface_client.delete_all_faces(subject_name)
 
 def safe_delete_subject(subject_name):
     """Wrapper sicuro per eliminare un soggetto."""
-    return subjects.delete(subject_name)
+    return insightface_client.delete_subject(subject_name)
 
 def safe_delete_image(image_id):
     """Wrapper sicuro per eliminare un'immagine specifica tramite ID."""
-    return face_collection.delete(image_id=image_id)
+    return insightface_client.delete_face(image_id)
 
-def refresh_compre_face_connection():
-    """Riinizializza la connessione a CompreFace per evitare problemi di stato."""
-    global recognition, face_collection, subjects
-    recognition = compre_face.init_face_recognition(API_KEY)
-    face_collection = recognition.get_face_collection()
-    subjects = recognition.get_subjects()
+def refresh_insightface_connection():
+    """
+    Funzione di compatibilità - non più necessaria con HTTP client.
+    Manteniamo per retrocompatibilità con il codice esistente.
+    """
+    global insightface_client
+    insightface_client = InsightFaceClient(
+        domain=DOMAIN,
+        port=PORT,
+        api_key=API_KEY,
+        det_prob_threshold=DETECTION_PROBABILITY_THRESHOLD
+    )
+
+# Alias per retrocompatibilità
+refresh_compre_face_connection = refresh_insightface_connection
 
 # Route per il login
 @app.route('/login', methods=['GET', 'POST'])
@@ -157,8 +245,8 @@ def login():
 @app.route('/')
 @login_required
 def index():
-    compreface_base_url = f"{DOMAIN}:{PORT}"
-    return render_template('dashboard.html', compreface_base_url=compreface_base_url)
+    insightface_base_url = f"{DOMAIN}:{PORT}"
+    return render_template('dashboard.html', compreface_base_url=insightface_base_url)  # Manteniamo nome variabile per retrocompatibilità template
 
 # Route per il logout
 @app.route('/logout')
@@ -175,21 +263,20 @@ def get_config():
     })
 
 
-# Endpoint proxy per servire immagini dal server CompreFace
+# Endpoint proxy per servire immagini dal server InsightFace
 @app.route('/proxy/images/<uuid:image_id>')
 @login_required
 def proxy_image(image_id):
     try:
-        url = f"{DOMAIN}:{PORT}/api/v1/recognition/faces/{image_id}/img"
-        headers = {'x-api-key': API_KEY}
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            return Response(
-                response.content,
-                content_type=response.headers['Content-Type']
-            )
-        return Response(b'', status=404)
+        image_data = insightface_client.get_face_image(str(image_id))
+        return Response(
+            image_data,
+            content_type='image/jpeg'
+        )
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            return Response(b'', status=404)
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -228,7 +315,7 @@ def add_subject():
             app.logger.error("Nome soggetto e immagine (o percorso temporaneo) sono richiesti.")
             return jsonify({"error": "Nome soggetto e immagine (o percorso temporaneo) sono richiesti."}), 400
 
-        existing_subjects = retry(lambda: subjects.list(), retries=3, delay=1).get('subjects', [])
+        existing_subjects = retry(lambda: insightface_client.list_subjects(), retries=3, delay=1).get('subjects', [])
         if subject_name in existing_subjects:
             app.logger.warning(f"Tentativo di aggiungere un soggetto esistente: {subject_name}")
             return jsonify({"error": f"Soggetto '{subject_name}' esiste già."}), 409
@@ -252,14 +339,14 @@ def add_subject():
             app.logger.error("Nessuna immagine valida fornita per nuovo soggetto.")
             return jsonify({"error": "Immagine valida è richiesta."}), 400
 
-        app.logger.info(f"Aggiunta soggetto '{subject_name}' a CompreFace.")
+        app.logger.info(f"Aggiunta soggetto '{subject_name}' a InsightFace.")
         retry(lambda: safe_add_subject(subject_name), retries=3, delay=1)
 
         app.logger.info(f"Aggiunta immagine '{image_path}' al soggetto '{subject_name}'.")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
         if 'image_id' not in response:
-            app.logger.error(f"Risposta CompreFace non valida per aggiunta immagine a nuovo soggetto: {response}")
+            app.logger.error(f"Risposta InsightFace non valida per aggiunta immagine a nuovo soggetto: {response}")
             return jsonify({"error": "Errore durante l'aggiunta dell'immagine al nuovo soggetto."}), 500
         
         app.logger.info(f"Soggetto '{subject_name}' e immagine aggiunti con successo. ID immagine: {response.get('image_id')}")
@@ -289,7 +376,7 @@ def add_image_to_subject(subject_name):
     try:
         app.logger.info(f"Aggiunta immagine per soggetto: {subject_name}")
         
-        all_subjects_list = retry(lambda: subjects.list(), retries=3, delay=1)
+        all_subjects_list = retry(lambda: insightface_client.list_subjects(), retries=3, delay=1)
         if subject_name not in all_subjects_list.get('subjects', []):
             app.logger.error(f"Soggetto '{subject_name}' non trovato")
             return jsonify({"error": f"Soggetto '{subject_name}' non trovato."}), 404
@@ -322,12 +409,12 @@ def add_image_to_subject(subject_name):
             app.logger.error("Nessuna immagine valida fornita.")
             return jsonify({"error": "Immagine valida è richiesta."}), 400
 
-        app.logger.info(f"Aggiunta immagine a CompreFace: {image_path}")
+        app.logger.info(f"Aggiunta immagine a InsightFace: {image_path}")
         response = retry(lambda: safe_add_image(image_path, subject_name), retries=3, delay=1)
 
         if 'image_id' not in response:
-            app.logger.error(f"Risposta CompreFace non valida: {response}")
-            return jsonify({"error": "Errore durante l'aggiunta dell'immagine a CompreFace."}), 500
+            app.logger.error(f"Risposta InsightFace non valida: {response}")
+            return jsonify({"error": "Errore durante l'aggiunta dell'immagine a InsightFace."}), 500
 
         app.logger.info(f"Immagine aggiunta con successo, ID: {response.get('image_id')}")
         return jsonify({"message": f"Immagine aggiunta con successo al soggetto '{subject_name}'."}), 200
@@ -358,7 +445,7 @@ def rename_subject(old_subject_name):
 
         # Aggiornamento nome soggetto con retry e backoff
         response = retry_with_backoff(
-            lambda: subjects.update(old_subject_name, new_subject_name),
+            lambda: insightface_client.rename_subject(old_subject_name, new_subject_name),
             retries=5,
             initial_delay=1,
             max_delay=5,
@@ -366,7 +453,7 @@ def rename_subject(old_subject_name):
         )
 
         if response.get('updated'):
-            refresh_compre_face_connection()
+            refresh_insightface_connection()
             return jsonify({"message": f"Soggetto '{old_subject_name}' rinominato in '{new_subject_name}'."}), 200
         return jsonify({"error": "Rinominazione fallita"}), 400
 
@@ -407,7 +494,7 @@ def delete_subject(subject_name):
 def delete_image(image_id):
     try:
         # Recupero informazioni sull'immagine e conteggio immagini per soggetto
-        all_faces = face_collection.list()
+        all_faces = insightface_client.list_faces()
         
         subject_name = None
         image_count = 0
@@ -427,13 +514,13 @@ def delete_image(image_id):
         
         # Logica di eliminazione: se è l'ultima immagine, elimina anche il soggetto
         if image_count > 1:
-            face_collection.delete(image_id=image_id)
+            insightface_client.delete_face(image_id)
             return jsonify({"message": "Immagine eliminata con successo."})
         else:
             # Eliminazione completa del soggetto se è l'ultima immagine
             retry(lambda: safe_delete_all_subject_faces(subject_name), retries=5, delay=2)
             retry(lambda: safe_delete_subject(subject_name), retries=5, delay=2)
-            refresh_compre_face_connection()
+            refresh_insightface_connection()
             return jsonify({"message": f"Soggetto '{subject_name}' e tutte le immagini associate eliminate."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

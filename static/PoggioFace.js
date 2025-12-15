@@ -52,6 +52,28 @@ window.addEventListener('DOMContentLoaded', () => {
     loadConfig();  // Carica la configurazione prima di inizializzare la camera
 });
 
+// Ferma lo stream quando l'utente chiude o lascia la pagina
+window.addEventListener('beforeunload', () => {
+    // Ferma il riconoscimento
+    if (recognitionTimer) {
+        clearInterval(recognitionTimer);
+    }
+    // Ferma lo stream video sul server
+    navigator.sendBeacon('/stop_video_stream', '');
+});
+
+// Ferma lo stream anche quando la pagina diventa nascosta (cambio tab, minimizzazione)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        // Opzionale: ferma lo stream quando la tab non è visibile
+        // Decommenta le righe seguenti se vuoi questo comportamento
+        // if (recognitionTimer) {
+        //     clearInterval(recognitionTimer);
+        // }
+        // fetch('/stop_video_stream', { method: 'POST' });
+    }
+});
+
 // Elementi DOM
 const videoElement = document.getElementById('videoElement');
 const canvas = document.getElementById('canvas');

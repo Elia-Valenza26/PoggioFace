@@ -206,7 +206,7 @@ def get_video_frame():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-@app.route('/stop_video_stream', methods=['POST'])
+@app.route('/stop_video_stream', methods=['POST', 'GET'])
 def stop_video_stream():
     try:
         shared_video_stream.stop_stream()
