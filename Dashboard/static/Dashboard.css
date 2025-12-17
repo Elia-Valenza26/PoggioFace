@@ -182,6 +182,130 @@ body {
     opacity: 1;                            /* Rende visibile */
 }
 
+/* ============================================
+   STILI PANNELLO DETTAGLI SOGGETTO INLINE
+   ============================================ */
+
+/* Wrapper per la card soggetto + pannello dettagli */
+.subject-card-wrapper {
+    margin-bottom: 0.5rem;
+}
+
+/* Pannello dettagli espandibile */
+.subject-details-panel {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border-radius: 0 0 12px 12px;
+    margin-top: -8px;
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, padding 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 0;
+    border: 1px solid #e5e7eb;
+    border-top: none;
+}
+
+/* Pannello dettagli aperto */
+.subject-details-panel.show {
+    max-height: 500px;
+    padding: 1rem;
+    opacity: 1;
+}
+
+/* Contenuto interno dettagli */
+.subject-details-panel .details-content {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Stile per stato vuoto inline */
+.empty-state-inline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    color: #6b7280;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+}
+
+/* Griglia immagini inline */
+.image-container-inline {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+    margin-top: 0.5rem;
+}
+
+/* Singola immagine inline */
+.image-item-inline {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: var(--hover-transition);
+    background: white;
+}
+
+.image-item-inline:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.image-item-inline img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+/* Bottone eliminazione immagine inline */
+.image-delete-inline {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.image-item-inline:hover .image-delete-inline {
+    opacity: 1;
+}
+
+.image-delete-inline:hover {
+    transform: scale(1.1);
+    background: rgba(220, 38, 38, 1);
+}
+
+/* Stile pulsante view attivo */
+.view-btn.active {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
 /* Gruppo bottoni azione */
 .action-btn-group {
     display: flex;                         /* Layout flex */

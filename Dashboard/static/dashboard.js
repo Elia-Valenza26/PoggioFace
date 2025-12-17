@@ -438,34 +438,42 @@ function renderSubjectsList(subjects) {
         const images = subjects[subject] || [];
         // Usa la prima immagine come thumbnail, o un placeholder se non ci sono immagini
         const firstImageUrl = images.length > 0 ? `/proxy/images/${images[0]}` : 'https://via.placeholder.com/48';
+        
+        // ID univoco per il pannello dettagli
+        const detailsId = `details-${subject.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '')}`;
 
         const card = document.createElement('div');
         card.className = 'col-12';
 
-        // Template HTML per la card del soggetto
+        // Template HTML per la card del soggetto con pannello dettagli espandibile
         card.innerHTML = `
-            <div class="subject-card bg-white p-3 rounded shadow-sm d-flex justify-content-between align-items-center flex-wrap">
-                <div class="d-flex align-items-center gap-3">
-                    <img src="${firstImageUrl}" alt="${subject}" class="rounded-circle" style="width: 48px; height: 48px; object-fit: cover;">
-                    <span class="fw-bold fs-5">${subject}</span>
+            <div class="subject-card-wrapper">
+                <div class="subject-card bg-white p-3 rounded shadow-sm d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="d-flex align-items-center gap-3">
+                        <img src="${firstImageUrl}" alt="${subject}" class="rounded-circle" style="width: 48px; height: 48px; object-fit: cover;">
+                        <span class="fw-bold fs-5">${subject}</span>
+                    </div>
+                    <div class="d-flex gap-2 mt-3 mt-md-0">
+                        <button class="btn btn-sm btn-primary view-btn" data-subject="${subject}" data-details-id="${detailsId}" title="Visualizza dettagli">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning rename-btn" data-subject="${subject}" title="Rinomina">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-btn" data-subject="${subject}" title="Elimina">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="d-flex gap-2 mt-3 mt-md-0">
-                    <button class="btn btn-sm btn-primary view-btn" data-subject="${subject}" title="Visualizza">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-warning rename-btn" data-subject="${subject}" title="Rinomina">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger delete-btn" data-subject="${subject}" title="Elimina">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                <div class="subject-details-panel" id="${detailsId}" style="display: none;">
+                    <!-- I dettagli verranno inseriti qui dinamicamente -->
                 </div>
             </div>
         `;
 
         // Aggiunge event listener per i pulsanti della card
         card.querySelector('.view-btn').addEventListener('click', function() {
-            showSubjectDetails(this.getAttribute('data-subject'));
+            toggleSubjectDetails(this.getAttribute('data-subject'), this.getAttribute('data-details-id'), this);
         });
 
         card.querySelector('.rename-btn').addEventListener('click', function() {
@@ -481,7 +489,100 @@ function renderSubjectsList(subjects) {
 }
 
 /**
- * Mostra i dettagli di un soggetto specifico
+ * Toggle dei dettagli di un soggetto specifico (espande/comprime inline)
+ * @param {string} subject - Nome del soggetto da visualizzare
+ * @param {string} detailsId - ID del pannello dettagli
+ * @param {HTMLElement} button - Pulsante cliccato
+ */
+function toggleSubjectDetails(subject, detailsId, button) {
+    const detailsPanel = document.getElementById(detailsId);
+    const isVisible = detailsPanel.style.display !== 'none';
+    
+    // Chiudi tutti gli altri pannelli aperti
+    document.querySelectorAll('.subject-details-panel').forEach(panel => {
+        if (panel.id !== detailsId) {
+            panel.style.display = 'none';
+            panel.classList.remove('show');
+        }
+    });
+    
+    // Rimuovi classe active da tutti i pulsanti
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.querySelector('i').classList.remove('fa-eye-slash');
+        btn.querySelector('i').classList.add('fa-eye');
+    });
+    
+    if (isVisible) {
+        // Chiudi il pannello
+        detailsPanel.classList.remove('show');
+        setTimeout(() => {
+            detailsPanel.style.display = 'none';
+        }, 300);
+        selectedSubject = null;
+    } else {
+        // Apri il pannello
+        selectedSubject = subject;
+        const subjectImages = allSubjects[subject] || [];
+        
+        // Genera il contenuto dei dettagli
+        detailsPanel.innerHTML = `
+            <div class="details-content">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Numero di immagini: <strong>${subjectImages.length}</strong></span>
+                    <button class="btn btn-sm btn-success add-photo-inline-btn" data-subject="${subject}">
+                        <i class="fas fa-camera me-1"></i> Aggiungi Foto
+                    </button>
+                </div>
+                
+                ${subjectImages.length === 0 ? `
+                    <div class="empty-state-inline">
+                        <i class="fas fa-image fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0">Nessuna immagine disponibile per questo soggetto.</p>
+                    </div>
+                ` : `
+                    <div class="image-container-inline">
+                        ${subjectImages.map(imageId => `
+                            <div class="image-item-inline">
+                                <img src="/proxy/images/${imageId}" alt="${subject}">
+                                <button class="image-delete-inline" data-image-id="${imageId}" data-subject="${subject}">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+        
+        detailsPanel.style.display = 'block';
+        // Forza reflow per animazione
+        detailsPanel.offsetHeight;
+        detailsPanel.classList.add('show');
+        
+        // Aggiorna icona pulsante
+        button.classList.add('active');
+        button.querySelector('i').classList.remove('fa-eye');
+        button.querySelector('i').classList.add('fa-eye-slash');
+        
+        // Event listener per aggiungere foto
+        detailsPanel.querySelector('.add-photo-inline-btn').addEventListener('click', function() {
+            openAddImageModal(this.getAttribute('data-subject'));
+        });
+        
+        // Event listener per eliminare immagini
+        detailsPanel.querySelectorAll('.image-delete-inline').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const imageId = this.getAttribute('data-image-id');
+                const subj = this.getAttribute('data-subject');
+                openDeleteImageModal(imageId, subj);
+            });
+        });
+    }
+}
+
+/**
+ * Mostra i dettagli di un soggetto specifico (funzione legacy per compatibilità)
  * @param {string} subject - Nome del soggetto da visualizzare
  */
 function showSubjectDetails(subject) {
@@ -489,6 +590,17 @@ function showSubjectDetails(subject) {
     const subjectImages = allSubjects[subject] || [];
     
     const detailsContainer = document.getElementById('subject-details');
+    // Se non esiste il container, usa la nuova logica inline
+    if (!detailsContainer) {
+        // Trova il pannello dettagli del soggetto e lo apre
+        const detailsId = `details-${subject.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '')}`;
+        const btn = document.querySelector(`[data-details-id="${detailsId}"]`);
+        if (btn) {
+            toggleSubjectDetails(subject, detailsId, btn);
+        }
+        return;
+    }
+    
     // Genera il template HTML per i dettagli del soggetto
     detailsContainer.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-3">
