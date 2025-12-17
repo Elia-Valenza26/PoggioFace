@@ -1,11 +1,15 @@
 # PoggioFace - Sistema di Riconoscimento Facciale per Controllo Accessi
 
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
+![Flask](https://img.shields.io/badge/Flask-3.1-green.svg)
+![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-PoggioFace è un sistema completo di riconoscimento facciale sviluppato in Python e Flask, progettato per il controllo degli accessi tramite riconoscimento biometrico. Utilizza **InsightFace** come motore di riconoscimento e offre una dashboard web per la gestione dei soggetti e il monitoraggio in tempo reale.
+PoggioFace è un sistema completo di riconoscimento facciale sviluppato in Python e Flask, progettato per il controllo degli accessi tramite riconoscimento biometrico. Utilizza **InsightFace** (modello `buffalo_l` basato su ArcFace) come motore di riconoscimento containerizzato in Docker, e offre una dashboard web per la gestione dei soggetti e il monitoraggio in tempo reale.
 
 Il sistema è stato implementato presso il **Collegio di Merito IPE Poggiolevante** per consentire l'accesso alla struttura tramite riconoscimento facciale.
 
-Per maggiori informazioni, consultare la documentazione completa [Doc.md](Doc/Doc.md) e il report di migrazione [MIGRATION_REPORT.md](MIGRATION_REPORT.md).
+> 📚 **Documentazione**: [Doc.md](Doc/Doc.md) | **Report Migrazione**: [MIGRATION_REPORT.md](MIGRATION_REPORT.md)
 
 ---
 
@@ -16,7 +20,32 @@ Per maggiori informazioni, consultare la documentazione completa [Doc.md](Doc/Do
 -   **Cattura Foto Remota**: Aggiungi foto ai soggetti sia da file locali che scattandole in tempo reale dalla webcam del client di riconoscimento, senza interrompere il servizio.
 -   **Integrazione Hardware**: Controllo di dispositivi esterni (es. relay Shelly per apertura porte) a seguito di un riconoscimento positivo.
 -   **Configurazione Centralizzata**: Gestione di tutte le impostazioni tramite un unico file `.env` condiviso da tutti i componenti.
+-   **Deployment Multi-Macchina**: Supporto per architetture distribuite (server + client separati).
 -   **Avvio Automatico**: Script per l'avvio automatico dei servizi al boot del sistema.
+
+---
+
+## 🏗️ Architettura
+
+```
+┌─────────────────────────────────────┐     ┌─────────────────────────────────────┐
+│         MACCHINA SERVER             │     │         MACCHINA CLIENT             │
+│                                     │     │                                     │
+│  ┌─────────────────────────────┐    │     │  ┌─────────────────────────────┐    │
+│  │   InsightFace (Docker)      │    │     │  │      PoggioFace.py          │    │
+│  │   Porta: 8000               │◄── ┼─────┼──│      Porta: 5002            │    │
+│  │   - Riconoscimento 1:N      │    │     │  │      - Cattura webcam       │    │
+│  │   - Gestione embedding      │    │     │  │      - Attivazione Shelly   │    │
+│  └─────────────────────────────┘    │     │  └─────────────────────────────┘    │
+│                                     │     │                                     │
+│  ┌─────────────────────────────┐    │     └─────────────────────────────────────┘
+│  │   Dashboard Flask           │    │
+│  │   Porta: 5000               │    │
+│  │   - Gestione soggetti       │    │
+│  │   - Upload immagini         │    │
+│  └─────────────────────────────┘    │
+└─────────────────────────────────────┘
+```
 
 ---
 
@@ -141,17 +170,72 @@ python dashboard.py
 
 ```
 PoggioFace/
-├── .env
-├── PoggioFace.py
-├── requirements.txt
-├── start_dashboard.sh
-├── Dashboard/
-│   ├── dashboard.py
-│   ├── static/
-│   └── templates/
-├── Doc/
-│   ├── Doc.md
-│   └── Image/
-│       └── workflow.png
-└── tmp/
+├── .env                        # Configurazione centralizzata
+├── PoggioFace.py               # Client riconoscimento facciale
+├── SharedVideoStreamer.py      # Gestione stream video condiviso
+├── requirements.txt            # Dipendenze Python
+├── MIGRATION_REPORT.md         # Report migrazione CompreFace → InsightFace
+├── start_dashboard.sh          # Script avvio automatico
+│
+├── insightface_service/        # Servizio InsightFace (Docker)
+│   ├── app.py                  # API FastAPI wrapper
+│   ├── Dockerfile              # Container GPU
+│   ├── Dockerfile.cpu          # Container CPU
+│   ├── docker-compose.yml      # Orchestrazione
+│   ├── requirements.txt        # Dipendenze servizio
+│   └── data/                   # Persistenza dati (embeddings + immagini)
+│
+├── Dashboard/                  # Dashboard amministrativa
+│   ├── dashboard.py            # Backend Flask
+│   ├── static/                 # CSS, JS
+│   ├── templates/              # HTML templates
+│   └── tmp/                    # File temporanei upload
+│
+├── static/                     # File statici PoggioFace
+├── templates/                  # Template HTML PoggioFace
+│
+└── Doc/                        # Documentazione
+    ├── Doc.md                  # Documentazione principale
+    └── Image/                  # Immagini documentazione
 ```
+
+---
+
+## 🔌 API Endpoints
+
+### InsightFace Service (`:8000`)
+| Endpoint | Metodo | Descrizione |
+|----------|--------|-------------|
+| `/health` | GET | Stato del servizio |
+| `/api/v1/recognition/recognize` | POST | Riconoscimento 1:N |
+| `/api/v1/recognition/subjects` | GET/POST/DELETE/PUT | Gestione soggetti |
+| `/api/v1/recognition/faces` | GET/POST/DELETE | Gestione volti |
+
+### Dashboard (`:5000`)
+| Endpoint | Metodo | Descrizione |
+|----------|--------|-------------|
+| `/` | GET | Pagina principale |
+| `/subjects` | GET/POST | Lista/Crea soggetti |
+| `/subjects/<name>/images` | POST | Aggiungi immagine |
+| `/receive_remote_photo` | POST | Ricevi foto da webcam remota |
+
+### PoggioFace (`:5002`)
+| Endpoint | Metodo | Descrizione |
+|----------|--------|-------------|
+| `/` | GET | Interfaccia riconoscimento |
+| `/config` | GET | Configurazione frontend |
+| `/shelly_url` | POST | Attiva relay Shelly |
+| `/capture_remote_photo` | GET | Pagina cattura remota |
+
+---
+
+## 📖 Documentazione
+
+- **[Doc.md](Doc/Doc.md)** - Documentazione tecnica completa
+- **[MIGRATION_REPORT.md](MIGRATION_REPORT.md)** - Dettagli migrazione da CompreFace a InsightFace
+- **[insightface_service/README.md](insightface_service/README.md)** - Documentazione servizio Docker
+
+---
+
+
+*Ultima modifica: Dicembre 2025 - Versione 2.0 (InsightFace)*
