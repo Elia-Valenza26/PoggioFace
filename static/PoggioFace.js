@@ -97,9 +97,9 @@ async function startCamera() {
             throw new Error('Impossibile avviare lo stream condiviso');
         }
         
-        // Simula le dimensioni del video per il canvas
-        canvas.width = 640;
-        canvas.height = 480;
+        // Simula le dimensioni del video per il canvas (16:9)
+        canvas.width = 1280;
+        canvas.height = 720;
         
         log("Stream condiviso avviato correttamente.");
         
@@ -340,12 +340,6 @@ function renderFrame() {
 
 // Sposta la logica degli overlay in una funzione separata
 function drawOverlays() {
-    // Scrivi "PoggioFace" in alto al centro
-    ctx.font = '28px Arial';
-    ctx.fillStyle = '#00FFFF';
-    ctx.textAlign = 'center';
-    ctx.fillText('PoggioFace', canvas.width / 2, 40);
-
     if (subjectVisible && lastResults && lastResults.length > 0) {
         lastResults.forEach(result => {
             const box = result.box;
