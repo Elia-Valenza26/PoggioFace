@@ -3,7 +3,6 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-3.1-green.svg)
 ![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 PoggioFace è un sistema completo di riconoscimento facciale sviluppato in Python e Flask, progettato per il controllo degli accessi tramite riconoscimento biometrico. Utilizza **InsightFace** (modello `buffalo_l` basato su ArcFace) come motore di riconoscimento containerizzato in Docker, e offre una dashboard web per la gestione dei soggetti e il monitoraggio in tempo reale.
 
@@ -15,8 +14,9 @@ Il sistema è stato implementato presso il **Collegio di Merito IPE Poggiolevant
 
 ## ✨ Caratteristiche Principali
 
--   **Riconoscimento Facciale in Tempo Reale**: Cattura e analisi del flusso video da una webcam.
+-   **Riconoscimento Facciale in Tempo Reale**: Cattura e analisi del flusso video da una webcam in formato 16:9.
 -   **Dashboard Amministrativa**: Interfaccia web per la gestione completa (CRUD) dei soggetti e delle loro foto.
+-   **Log Riconoscimenti in Tempo Reale**: Visualizzazione dei tentativi di riconoscimento con cancellazione automatica per privacy.
 -   **Cattura Foto Remota**: Aggiungi foto ai soggetti sia da file locali che scattandole in tempo reale dalla webcam del client di riconoscimento, senza interrompere il servizio.
 -   **Integrazione Hardware**: Controllo di dispositivi esterni (es. relay Shelly per apertura porte) a seguito di un riconoscimento positivo.
 -   **Configurazione Centralizzata**: Gestione di tutte le impostazioni tramite un unico file `.env` condiviso da tutti i componenti.
@@ -238,4 +238,4 @@ PoggioFace/
 ---
 
 
-*Ultima modifica: Dicembre 2025 - Versione 2.0 (InsightFace)*
+*Ultima modifica: Gennaio 2026 - Versione 2.1 (Log Riconoscimenti)*

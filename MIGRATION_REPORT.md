@@ -43,23 +43,23 @@ Questo documento descrive la migrazione completa del sistema di riconoscimento f
 ┌─────────────────────────────────────────────────────────────┐
 │                    MACCHINA SERVER (A)                      │
 │                    IP: 10.10.10.95                          │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Docker Container                        │   │
-│  │         InsightFace Service (FastAPI)               │   │
-│  │              Porta: 8000                             │   │
-│  │  ┌─────────────────────────────────────────────┐    │   │
-│  │  │  buffalo_l model + ONNX Runtime (CPU/GPU)  │    │   │
-│  │  │  Volume: ./data → /app/data                 │    │   │
-│  │  └─────────────────────────────────────────────┘    │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              Docker Container                       │    │
+│  │         InsightFace Service (FastAPI)               │    │
+│  │              Porta: 8000                            │    │
+│  │  ┌─────────────────────────────────────────────┐    │    │
+│  │  │  buffalo_l model + ONNX Runtime (CPU/GPU)   │    │    |
+│  │  │  Volume: ./data → /app/data                 │    │    │
+│  │  └─────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────┘    │
 │                           │                                 │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Dashboard Flask                         │   │
-│  │              Porta: 5000                             │   │
-│  │  - Gestione Subject                                  │   │
-│  │  - Upload immagini volti                            │   │
-│  │  - Interfaccia web amministrazione                  │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              Dashboard Flask                        │    │
+│  │              Porta: 5000                            │    │
+│  │  - Gestione Subject                                 │    │
+│  │  - Upload immagini volti                            │    │
+│  │  - Interfaccia web amministrazione                  │    │
+│  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                            │
                     Rete Locale
@@ -67,14 +67,14 @@ Questo documento descrive la migrazione completa del sistema di riconoscimento f
 ┌─────────────────────────────────────────────────────────────┐
 │                   MACCHINA CLIENT (B)                       │
 │                   IP: 10.10.11.22                           │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              PoggioFace.py (Flask)                  │   │
-│  │              Porta: 5002                             │   │
-│  │  - Cattura video webcam                             │   │
-│  │  - Invio frame per riconoscimento                   │   │
-│  │  - Visualizzazione risultati                        │   │
-│  │  - Attivazione Shelly                               │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              PoggioFace.py (Flask)                  │    │
+│  │              Porta: 5002                            │    │
+│  │  - Cattura video webcam                             │    │
+│  │  - Invio frame per riconoscimento                   │    │
+│  │  - Visualizzazione risultati                        │    │
+│  │  - Attivazione Shelly                               │    │
+│  └─────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 

@@ -26,9 +26,10 @@ Il sistema è stato implementato nel **Collegio di Merito IPE Poggiolevante**, p
 > **📌 Nota sulla Migrazione:** Il sistema è stato migrato da CompreFace a InsightFace nel Dicembre 2025. Per dettagli tecnici sulla migrazione, consultare [MIGRATION_REPORT.md](../MIGRATION_REPORT.md).
 
 ### Caratteristiche Principali
-- **Riconoscimento facciale in tempo reale** tramite webcam con modello InsightFace (ArcFace).
+- **Riconoscimento facciale in tempo reale** tramite webcam con modello InsightFace (ArcFace) in formato 16:9.
 - **Motore di riconoscimento containerizzato** con Docker per facilità di deployment.
 - **Dashboard amministrativa** per la gestione completa (CRUD) dei soggetti e delle loro immagini.
+- **Log Riconoscimenti in tempo reale** con visualizzazione nella Dashboard e cancellazione automatica per privacy.
 - **Cattura foto** sia da file locali che da webcam remota.
 - **Integrazione hardware** con dispositivi Shelly per il controllo degli accessi (es. apertura porte).
 - **Configurazione centralizzata** tramite file `.env` unico per tutti i componenti.
@@ -317,11 +318,12 @@ docker logs insightface-api --tail 50
 Questo è il client che gestisce la webcam e il riconoscimento in tempo reale.
 
 - **Funzionalità**: 
-  - Cattura frame dalla webcam
+  - Cattura frame dalla webcam in formato 16:9 (1280x720)
   - Invia immagini all'API InsightFace per il riconoscimento
   - Visualizza risultati con overlay grafico
   - Attiva dispositivi Shelly al riconoscimento
   - Fornisce endpoint per cattura foto remota dalla Dashboard
+  - **Sistema di Log Riconoscimenti** in memoria per tracciare i tentativi di accesso
 - **Interfaccia**: Fornisce un'interfaccia web su `http://localhost:5002` che mostra il feed della webcam con overlay di riconoscimento.
 - **Componente Condiviso**: Utilizza `SharedVideoStreamer.py` per condividere lo stream video tra riconoscimento e cattura foto.
 
@@ -333,6 +335,7 @@ Questo servizio fornisce un'interfaccia web completa per la gestione dei dati di
   - Upload immagini da file locale
   - Cattura foto dalla webcam remota (PoggioFace)
   - Visualizzazione immagini associate ai soggetti
+  - **Visualizzazione Log Riconoscimenti** in tempo reale con cancellazione automatica per privacy
 - **Interfaccia**: Accessibile su `http://localhost:5000`. L'accesso è protetto da password.
 - **Client HTTP**: Utilizza una classe `InsightFaceClient` interna per comunicare con l'API InsightFace via HTTP.
 
@@ -364,6 +367,12 @@ La dashboard è lo strumento principale per gestire la "memoria" del sistema di 
    - Visualizzazione immagini per soggetto
    - Eliminazione singole immagini
 
+3. **Log Riconoscimenti**
+   - Visualizzazione in tempo reale dei tentativi di riconoscimento
+   - Informazioni visualizzate: soggetto, similarità, timestamp, stato (riconosciuto/fallito/sconosciuto)
+   - **Cancellazione automatica per privacy** quando si esce dalla sezione o si chiude la pagina
+   - I log NON vengono persistiti su disco
+
 ### Flusso di Cattura Foto Remota
 Una delle funzionalità più potenti della dashboard è la possibilità di aggiungere un'immagine a un soggetto utilizzando la webcam dell'applicazione di riconoscimento (`PoggioFace`), senza interrompere il servizio.
 
@@ -374,6 +383,23 @@ Una delle funzionalità più potenti della dashboard è la possibilità di aggiu
 5.  **Salvataggio Temporaneo**: Il backend della dashboard salva l'immagine in una cartella temporanea (`/tmp`) e restituisce il percorso del file al frontend.
 6.  **Aggiunta Soggetto/Immagine**: Il frontend della dashboard utilizza questo percorso temporaneo per completare la richiesta di aggiunta di un nuovo soggetto o di una nuova immagine.
 7.  **Pulizia Automatica**: Dopo che l'immagine è stata caricata con successo, il backend della dashboard elimina il file temporaneo dalla cartella `/tmp`.
+
+### Sistema Log Riconoscimenti (Privacy)
+
+La funzionalità di visualizzazione log è progettata con un approccio **privacy-first**:
+
+- I log sono memorizzati **solo in memoria** nel backend PoggioFace (max 100 entries)
+- Quando l'utente esce dalla sezione Log → i log vengono cancellati automaticamente
+- Quando l'utente cambia tab o minimizza → i log vengono cancellati
+- Quando l'utente chiude/ricarica la pagina → i log vengono cancellati (via `sendBeacon`)
+- **Nessuna traccia rimane** dopo la visualizzazione
+
+Tipi di log registrati:
+| Tipo | Descrizione | Icona |
+|------|-------------|-------|
+| `recognition` | Soggetto riconosciuto sopra soglia | ✅ Verde |
+| `failed` | Volto rilevato ma sotto soglia | ⚠️ Giallo |
+| `detection` | Volto rilevato senza match | ❌ Rosso |
 
 ---
 
@@ -419,7 +445,11 @@ Una delle funzionalità più potenti della dashboard è la possibilità di aggiu
 | `POST` | `/shelly_url`             | Attiva il dispositivo Shelly.                     |
 | `GET`  | `/recognition_status`     | Stato del riconoscimento e dello stream.          |
 | `POST` | `/start_recognition`      | Avvia il riconoscimento facciale.                 |
+| `POST` | `/stop_recognition`       | Ferma il riconoscimento facciale.                 |
 | `GET`  | `/capture_remote_photo`   | Fornisce la pagina per la cattura remota.         |
+| `POST` | `/recognition_log`        | Aggiunge un log di riconoscimento (interno).      |
+| `GET`  | `/recognition_logs`       | Restituisce tutti i log di riconoscimento.        |
+| `POST` | `/recognition_logs/clear` | Cancella tutti i log (usato per privacy).         |
 
 ---
 
@@ -605,5 +635,5 @@ Le password sono hashate con SHA-256 prima di essere confrontate, garantendo che
 
 ---
 
-*Ultima modifica: Dicembre 2025*  
-*Versione: 2.0 (post-migrazione InsightFace)*
+*Ultima modifica: Gennaio 2026*  
+*Versione: 2.1 (Log Riconoscimenti + Privacy)*
