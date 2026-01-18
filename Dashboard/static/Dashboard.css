@@ -626,3 +626,104 @@ body {
     border-color: var(--danger-color);   /* Bordo rosso errore */
     background: rgba(248, 113, 113, 0.05); /* Sfondo rosso chiaro */
 }
+
+/* ============================================
+   STILI SEZIONE LOG RICONOSCIMENTI
+   ============================================ */
+
+/* Container della lista log */
+.logs-list {
+    max-height: 600px;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+/* Singolo elemento log */
+.log-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: var(--hover-transition);
+}
+
+.log-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Varianti di log per tipo */
+.log-item.log-recognition {
+    border-left-color: var(--success-color);
+}
+
+.log-item.log-failed {
+    border-left-color: var(--warning-color);
+}
+
+.log-item.log-detection {
+    border-left-color: var(--danger-color);
+}
+
+/* Icona del log */
+.log-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1rem;
+}
+
+.log-recognition .log-icon {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--success-color);
+}
+
+.log-failed .log-icon {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning-color);
+}
+
+.log-detection .log-icon {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--danger-color);
+}
+
+/* Contenuto del log */
+.log-content {
+    flex: 1;
+}
+
+.log-subject {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.25rem;
+}
+
+.log-details {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* Timestamp del log */
+.log-timestamp {
+    font-size: 0.8rem;
+    color: #999;
+    white-space: nowrap;
+}
+
+/* Messaggio nessun log */
+#no-logs-message {
+    color: #999;
+}
+
+#no-logs-message i {
+    color: #ccc;
+}

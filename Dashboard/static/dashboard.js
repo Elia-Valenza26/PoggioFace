@@ -1126,3 +1126,183 @@ function showToast(message, type = 'info') {
         toast.remove();
     });
 }
+
+// ============================================
+// GESTIONE LOG RICONOSCIMENTI
+// ============================================
+
+/**
+ * Mostra la sezione log e nasconde i soggetti
+ */
+function showLogsSection() {
+    document.getElementById('subjects-section').classList.add('d-none');
+    document.getElementById('logs-section').classList.remove('d-none');
+    fetchRecognitionLogs();
+}
+
+/**
+ * Nasconde la sezione log e mostra i soggetti
+ */
+function hideLogsSection() {
+    document.getElementById('logs-section').classList.add('d-none');
+    document.getElementById('subjects-section').classList.remove('d-none');
+}
+
+/**
+ * Carica i log di riconoscimento dal backend di PoggioFace
+ */
+async function fetchRecognitionLogs() {
+    try {
+        const response = await fetch(`${POGGIO_FACE_URL}/recognition_logs`);
+        
+        if (!response.ok) {
+            throw new Error(`Errore HTTP: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        renderLogs(data.logs || []);
+        
+    } catch (error) {
+        console.error('Errore durante il caricamento dei log:', error);
+        showToast('Errore durante il caricamento dei log: ' + error.message, 'danger');
+        
+        // Mostra messaggio di errore nella sezione log
+        const logsContainer = document.getElementById('logs-container');
+        logsContainer.innerHTML = `
+            <div class="text-center text-danger py-4">
+                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                <p>Impossibile caricare i log. Verifica che PoggioFace sia attivo.</p>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Renderizza i log nella UI
+ */
+function renderLogs(logs) {
+    const logsContainer = document.getElementById('logs-container');
+    
+    if (!logs || logs.length === 0) {
+        logsContainer.innerHTML = `
+            <div class="text-center text-muted py-4" id="no-logs-message">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p>Nessun log disponibile</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    logs.forEach(log => {
+        const timestamp = new Date(log.timestamp);
+        const timeStr = timestamp.toLocaleTimeString('it-IT', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+        });
+        const dateStr = timestamp.toLocaleDateString('it-IT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+        
+        let icon, typeClass, statusText;
+        
+        switch(log.type) {
+            case 'recognition':
+                icon = 'fa-check-circle';
+                typeClass = 'log-recognition';
+                statusText = 'Riconosciuto';
+                break;
+            case 'failed':
+                icon = 'fa-question-circle';
+                typeClass = 'log-failed';
+                statusText = 'Non riconosciuto';
+                break;
+            case 'detection':
+            default:
+                icon = 'fa-user-slash';
+                typeClass = 'log-detection';
+                statusText = 'Volto sconosciuto';
+                break;
+        }
+        
+        const similarity = log.similarity ? (log.similarity * 100).toFixed(1) + '%' : 'N/A';
+        
+        html += `
+            <div class="log-item ${typeClass}">
+                <div class="log-icon">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div class="log-content">
+                    <div class="log-subject">${log.subject}</div>
+                    <div class="log-details">
+                        <span class="badge bg-${log.recognized ? 'success' : 'secondary'} me-2">${statusText}</span>
+                        <span>Similarità: ${similarity}</span>
+                    </div>
+                </div>
+                <div class="log-timestamp">
+                    <div>${timeStr}</div>
+                    <div>${dateStr}</div>
+                </div>
+            </div>
+        `;
+    });
+    
+    logsContainer.innerHTML = html;
+}
+
+/**
+ * Cancella tutti i log di riconoscimento
+ */
+async function clearRecognitionLogs() {
+    try {
+        const response = await fetch(`${POGGIO_FACE_URL}/recognition_logs/clear`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Errore HTTP: ${response.status}`);
+        }
+        
+        showToast('Log cancellati con successo', 'success');
+        renderLogs([]);
+        
+    } catch (error) {
+        console.error('Errore durante la cancellazione dei log:', error);
+        showToast('Errore durante la cancellazione dei log: ' + error.message, 'danger');
+    }
+}
+
+// Event listener per i pulsanti della sezione log (da aggiungere al DOMContentLoaded)
+document.addEventListener('DOMContentLoaded', function() {
+    // Pulsante per toggle visualizzazione log
+    const toggleLogsBtn = document.getElementById('toggle-logs-btn');
+    if (toggleLogsBtn) {
+        toggleLogsBtn.addEventListener('click', showLogsSection);
+    }
+    
+    // Pulsante per tornare ai soggetti
+    const backToSubjectsBtn = document.getElementById('back-to-subjects-btn');
+    if (backToSubjectsBtn) {
+        backToSubjectsBtn.addEventListener('click', hideLogsSection);
+    }
+    
+    // Pulsante per aggiornare i log
+    const refreshLogsBtn = document.getElementById('refresh-logs-btn');
+    if (refreshLogsBtn) {
+        refreshLogsBtn.addEventListener('click', fetchRecognitionLogs);
+    }
+    
+    // Pulsante per cancellare i log
+    const clearLogsBtn = document.getElementById('clear-logs-btn');
+    if (clearLogsBtn) {
+        clearLogsBtn.addEventListener('click', function() {
+            if (confirm('Sei sicuro di voler cancellare tutti i log?')) {
+                clearRecognitionLogs();
+            }
+        });
+    }
+});

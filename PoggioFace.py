@@ -61,6 +61,11 @@ shared_video_stream = SharedVideoStreamer()
 # Variabile globale per tracciare lo stato del riconoscimento facciale
 recognition_active = False
 
+# Sistema di log per i riconoscimenti facciali (in memoria, max 100 entries)
+recognition_logs = []
+MAX_LOG_ENTRIES = 100
+log_lock = threading.Lock()  # Lock per accesso thread-safe ai log
+
 # Route principale che serve il template HTML per il riconoscimento facciale
 @app.route('/')
 def home():
@@ -96,6 +101,64 @@ def log_message():
         return jsonify({"status": "success", "message": "Log scritto correttamente"}), 200
     else:
         return jsonify({"status": "error", "message": "Nessun messaggio fornito"}), 400
+
+
+# ============================================
+# SISTEMA LOG RICONOSCIMENTI FACCIALI
+# ============================================
+
+@app.route('/recognition_log', methods=['POST'])
+def add_recognition_log():
+    """Aggiunge un nuovo log di riconoscimento facciale"""
+    global recognition_logs
+    try:
+        data = request.get_json()
+        
+        log_entry = {
+            'timestamp': datetime.datetime.now().isoformat(),
+            'subject': data.get('subject', 'Sconosciuto'),
+            'similarity': data.get('similarity', 0),
+            'recognized': data.get('recognized', False),
+            'type': data.get('type', 'detection')  # 'detection', 'recognition', 'failed'
+        }
+        
+        with log_lock:
+            recognition_logs.insert(0, log_entry)  # Inserisci all'inizio (più recente prima)
+            # Mantieni solo gli ultimi MAX_LOG_ENTRIES
+            if len(recognition_logs) > MAX_LOG_ENTRIES:
+                recognition_logs = recognition_logs[:MAX_LOG_ENTRIES]
+        
+        app.logger.info(f"Log riconoscimento: {log_entry['type']} - {log_entry['subject']} ({log_entry['similarity']:.2f})")
+        return jsonify({"status": "success"}), 200
+        
+    except Exception as e:
+        app.logger.error(f"Errore aggiunta log riconoscimento: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/recognition_logs', methods=['GET'])
+def get_recognition_logs():
+    """Restituisce tutti i log di riconoscimento"""
+    try:
+        with log_lock:
+            return jsonify({"logs": recognition_logs})
+    except Exception as e:
+        app.logger.error(f"Errore lettura log riconoscimento: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/recognition_logs/clear', methods=['POST'])
+def clear_recognition_logs():
+    """Cancella tutti i log di riconoscimento"""
+    global recognition_logs
+    try:
+        with log_lock:
+            recognition_logs = []
+        app.logger.info("Log riconoscimenti cancellati")
+        return jsonify({"status": "success", "message": "Log cancellati"})
+    except Exception as e:
+        app.logger.error(f"Errore cancellazione log: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 # Endpoint che restituisce la configurazione completa al frontend.

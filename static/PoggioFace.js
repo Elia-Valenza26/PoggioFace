@@ -156,6 +156,28 @@ async function stopRecognition() {
     }
 }
 
+// Funzione per inviare log di riconoscimento al backend
+async function sendRecognitionLog(subject, similarity, recognized, type = 'detection') {
+    try {
+        await fetch('/recognition_log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                subject: subject,
+                similarity: similarity,
+                recognized: recognized,
+                type: type
+            })
+        });
+    } catch (error) {
+        console.error('Errore invio log riconoscimento:', error);
+    }
+}
+
+// Variabile per evitare log duplicati
+let lastLoggedSubject = null;
+let lastLogTime = 0;
+
 // Loop di riconoscimento (eseguito ogni 1 secondo)
 function recognitionLoop() {
     if (!isRunning) return;
@@ -166,8 +188,39 @@ function recognitionLoop() {
                 lastResults = results;
                 subjectVisible = true; // Il soggetto è visibile
                 log(`Riconosciuto ${results.length} volti.`);
+                
+                // Invia log per ogni volto riconosciuto
+                results.forEach(result => {
+                    if (result.subjects && result.subjects.length > 0) {
+                        const bestMatch = result.subjects.sort((a, b) => b.similarity - a.similarity)[0];
+                        const currentTime = Date.now();
+                        
+                        // Invia log solo se è passato abbastanza tempo dall'ultimo log dello stesso soggetto
+                        if (bestMatch.similarity >= config.similarityThreshold) {
+                            if (bestMatch.subject !== lastLoggedSubject || (currentTime - lastLogTime) > 5000) {
+                                sendRecognitionLog(bestMatch.subject, bestMatch.similarity, true, 'recognition');
+                                lastLoggedSubject = bestMatch.subject;
+                                lastLogTime = currentTime;
+                            }
+                        } else {
+                            // Volto rilevato ma non riconosciuto con certezza sufficiente
+                            if ((currentTime - lastLogTime) > 5000) {
+                                sendRecognitionLog('Non riconosciuto', bestMatch.similarity, false, 'failed');
+                                lastLogTime = currentTime;
+                            }
+                        }
+                    } else {
+                        // Volto rilevato ma senza match
+                        const currentTime = Date.now();
+                        if ((currentTime - lastLogTime) > 5000) {
+                            sendRecognitionLog('Sconosciuto', 0, false, 'detection');
+                            lastLogTime = currentTime;
+                        }
+                    }
+                });
             } else {
                 subjectVisible = false; // Nessun soggetto riconosciuto
+                lastLoggedSubject = null; // Reset quando non c'è più nessuno
             }
         })
         .catch(error => {
