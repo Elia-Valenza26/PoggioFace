@@ -1142,10 +1142,13 @@ function showLogsSection() {
 
 /**
  * Nasconde la sezione log e mostra i soggetti
+ * Cancella automaticamente i log per privacy
  */
 function hideLogsSection() {
     document.getElementById('logs-section').classList.add('d-none');
     document.getElementById('subjects-section').classList.remove('d-none');
+    // Cancella i log per privacy quando si esce dalla sezione
+    clearRecognitionLogsSilent();
 }
 
 /**
@@ -1276,6 +1279,20 @@ async function clearRecognitionLogs() {
     }
 }
 
+/**
+ * Cancella i log silenziosamente (senza toast) - usato per privacy automatica
+ */
+async function clearRecognitionLogsSilent() {
+    try {
+        await fetch(`${POGGIO_FACE_URL}/recognition_logs/clear`, {
+            method: 'POST'
+        });
+        renderLogs([]);
+    } catch (error) {
+        console.error('Errore durante la cancellazione automatica dei log:', error);
+    }
+}
+
 // Event listener per i pulsanti della sezione log (da aggiungere al DOMContentLoaded)
 document.addEventListener('DOMContentLoaded', function() {
     // Pulsante per toggle visualizzazione log
@@ -1305,4 +1322,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Privacy: cancella i log quando l'utente lascia/chiude la pagina
+    window.addEventListener('beforeunload', function() {
+        // Usa sendBeacon per garantire che la richiesta venga inviata anche durante la chiusura
+        if (POGGIO_FACE_URL) {
+            navigator.sendBeacon(`${POGGIO_FACE_URL}/recognition_logs/clear`);
+        }
+    });
+    
+    // Privacy: cancella i log quando la pagina diventa nascosta (cambio tab, minimizzazione)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            // Cancella i log se la sezione log è visibile
+            const logsSection = document.getElementById('logs-section');
+            if (logsSection && !logsSection.classList.contains('d-none')) {
+                clearRecognitionLogsSilent();
+            }
+        }
+    });
 });
