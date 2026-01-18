@@ -1,3 +1,5 @@
 pogfac
 .env
 __pycache__
+insightface_service/data
+Dashboard/tmp
